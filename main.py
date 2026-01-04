@@ -1,25 +1,22 @@
-import imaplib
 import email
-import yaml
 import pandas as pd
 import re
+from login import login
+from bs4 import BeautifulSoup
 
-with open("credentials.yml", "r") as file:
-    content = file.read()
 
-credentials = yaml.safe_load(content)
-user,password = credentials["user"], credentials["password"]
-imap_url = 'imap.gmail.com'
-my_mail = imaplib.IMAP4_SSL(imap_url)
-my_mail.login(user, password)
-my_mail.select('Inbox')
 
+# Search criteria
 key = 'FROM'
-value = 'obwieszczenia@komornik.pl'
+value1 = 'obwieszczenia@komornik.pl'
+email_status = "UNSEEN"
 
-_,data = my_mail.search(None,key,value)
+my_mail = login("credentials.yml")
+
+_,data = my_mail.search(None,key,value1,email_status)
 
 mailids = data[0].split()
+print("Number of unread emails from obwieszczenia@komornik.pl:", len(mailids))
 
 msgs = []
 
@@ -57,8 +54,12 @@ for msg in msgs:
 
 
 df = pd.DataFrame(rows)
-df['Links'] = df['Body'].apply(body_regex)
-print(df['Links'])
+
+if df.empty:
+    pass
+else:
+    df['Links'] = df['Body'].apply(body_regex)
+    print(df['Links'])
 
 
 df.to_csv('emails.csv', index=False)
