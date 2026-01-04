@@ -2,15 +2,15 @@ import email
 import pandas as pd
 import re
 import sys
-import ast
 import time
 from login import login
 from bs4withAI import fetch_auction_data, ai_response
 
 
+
 # Search criteria
 key = 'FROM'
-value1 = 'komornik@test.com'
+value1 = 'czniedzialek@gmail.com'
 email_status = "SEEN"
 
 # Login to email
