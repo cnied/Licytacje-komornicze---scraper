@@ -10,7 +10,7 @@ from bs4withAI import fetch_auction_data, ai_response
 
 # Search criteria
 key = 'FROM'
-value1 = 'czniedzialek@gmail.com'
+value1 = 'komornik@test.com'
 email_status = "SEEN"
 
 # Login to email
