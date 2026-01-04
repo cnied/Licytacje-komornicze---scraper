@@ -1,14 +1,15 @@
 import email
 import pandas as pd
 import re
+import time
 from login import login
-
+from bs4withAI import fetch_auction_data, ai_response
 
 
 # Search criteria
 key = 'FROM'
 value1 = 'obwieszczenia@komornik.pl'
-email_status = "UNSEEN"
+email_status = "SEEN"
 
 # Login to email
 my_mail = login("credentials.yml")
@@ -31,24 +32,42 @@ for i in mailids:
 #print(msgs)
 
 
-regex = 'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
+MY_SYNTAX = r'https://licytacje\.komornik\.pl/Notice/Details'
+regex = MY_SYNTAX + r'/\d+'
 
 def body_regex(body):
-   return re.findall(regex, body)
-    
+    if not body:
+        return []
+    all_links = re.findall(regex, body)
+    unique_links = list(dict.fromkeys(all_links))
+    return unique_links
 
 rows = []
 
 for msg in msgs:
     for response_part in msg:
         if isinstance(response_part, tuple):
+
             msg = email.message_from_bytes(response_part[1])
             email_from = msg['from']
             email_subject = msg['subject']
-            email_body = msg.get_payload(decode=True).decode()
-            # print('From : ' + email_from + '\n')
-            # print('Subject : ' + email_subject + '\n')
-            # print('Body : ' + email_body + '\n')
+            
+            email_body = ""
+            if msg.is_multipart():
+                for part in msg.walk():
+                    content_type = part.get_content_type()
+                    content_disposition = str(part.get("Content-Disposition"))
+                    
+                    if content_type == "text/plain" and "attachment" not in content_disposition:
+                        payload = part.get_payload(decode=True)
+                        if payload:
+                            email_body = payload.decode(errors='ignore')
+                            break 
+            else:
+                payload = msg.get_payload(decode=True)
+                if payload:
+                    email_body = payload.decode(errors='ignore')
+
             rows.append({
                 'From': email_from,
                 'Subject': email_subject,
@@ -57,13 +76,33 @@ for msg in msgs:
 
 
 
+
 df = pd.DataFrame(rows)
 
 if df.empty:
-    pass
+    print("No emails found.")
 else:
     df['Links'] = df['Body'].apply(body_regex)
-    print(df['Links'])
+    df['Timestamp'] = pd.Timestamp.now()
+    df['Processed'] = False
+   #print(df['Links'])
+
+cols = [col for col in ['Subject', 'Links', 'Timestamp', 'Processed'] if col in df.columns]
+if cols:
+    df[cols].to_csv('emails.csv', index=True, encoding='utf-8-sig')
 
 
-df.to_csv('emails.csv', index=False)
+
+if __name__ == "__main__":
+
+    df_to_sql = pd.read_csv('emails.csv', index_col=0)
+    for index,row in df_to_sql.iterrows():
+        links = row['Links']
+        for link in links:
+            print(f"Processing link: {link}")
+            soup = fetch_auction_data(link)
+            time.sleep(10)
+            auction_data = ai_response(soup)
+
+            print(auction_data)
+

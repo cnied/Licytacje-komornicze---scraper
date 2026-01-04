@@ -7,11 +7,12 @@ from google.genai import types
 
 
 
-url = "https://licytacje.komornik.pl/Notice/Details/664034"
+url = "https://licytacje.komornik.pl/Notice/Details/664929"
 load_dotenv(".env")
 client = genai.Client()
 
 def fetch_auction_data(url):
+    
     html = requests.get(url,timeout=10).text
     soup = BeautifulSoup(html, "html.parser")
     return soup.get_text(separator="\n", strip=True)
@@ -21,10 +22,9 @@ def ai_response(soup):
     response = client.models.generate_content(
         model="gemini-2.5-flash",
         config=types.GenerateContentConfig(
-            # Wymuszenie formatu JSON
             response_mime_type="application/json",
             system_instruction="""
-            Wyciągnij dane z ogłoszenia o licytacji komorniczej. 
+            Wyciągnij dane z ogłoszenia o licytacji komorniczej.
             Zwróć JSON z polami:
             - suma_oszacowania (int)
             - cena_wywolawcza (int)
