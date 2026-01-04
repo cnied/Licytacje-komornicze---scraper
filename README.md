@@ -1,5 +1,10 @@
 # 🏠 Inteligentny Scraper Licytacji Komorniczych
 
+![Status](https://img.shields.io/badge/status-in%20progress-orange)
+![Progress](https://img.shields.io/badge/progress-20%25-yellow)
+
+🚧 **Projekt w trakcie rozwoju (20%)** 🚧
+
 Automatyczne narzędzie do pobierania, analizowania i wizualizacji ogłoszeń o licytacjach komorniczych.  
 Projekt wykorzystuje **AI (Google Gemini)**, **BeautifulSoup** i **geokodowanie**, a dane prezentuje na interaktywnej mapie.
 
@@ -12,7 +17,7 @@ Projekt wykorzystuje **AI (Google Gemini)**, **BeautifulSoup** i **geokodowanie*
 - analiza newsletterów z portalu licytacje.komornik.pl
 
 ### 🧠 Inteligentna ekstrakcja treści
-- dane z e‑licytacji pobierane z HTML przez BeautifulSoup
+- dane z e-licytacji pobierane z HTML przez BeautifulSoup
 - tekstowe obwieszczenia analizowane przez **Google Gemini AI**
 - ekstrakcja: adres, cena wywoławcza, opis
 
@@ -26,9 +31,9 @@ Projekt wykorzystuje **AI (Google Gemini)**, **BeautifulSoup** i **geokodowanie*
 
 ## 🛠 Jak działa (ETL)
 
-1. Extract – pobieranie maili  
-2. Transform – analiza i normalizacja danych  
-3. Load – zapis i wizualizacja
+1. **Extract** – pobieranie maili  
+2. **Transform** – analiza i normalizacja danych  
+3. **Load** – zapis i wizualizacja
 
 ---
 
@@ -82,6 +87,19 @@ database/        # dane historyczne
 
 Pliki `credentials.yml` i `.env` **nie mogą trafić do repozytorium**.  
 Dodaj je do `.gitignore`.
+
+---
+
+## 🗺 Roadmapa
+
+- [x] Podstawowy scraping HTML  
+- [x] Integracja z Gemini AI  
+- [ ] Stabilizacja parserów (WIP)  
+- [ ] Geokodowanie zbiorcze  
+- [ ] Interaktywna mapa  
+- [ ] Dashboard / UI  
+
+**Aktualny postęp: ~20%**
 
 ---
 
