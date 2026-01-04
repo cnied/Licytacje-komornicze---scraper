@@ -1,6 +1,8 @@
 import email
 import pandas as pd
 import re
+import sys
+import ast
 import time
 from login import login
 from bs4withAI import fetch_auction_data, ai_response
@@ -8,7 +10,7 @@ from bs4withAI import fetch_auction_data, ai_response
 
 # Search criteria
 key = 'FROM'
-value1 = 'obwieszczenia@komornik.pl'
+value1 = 'czniedzialek@gmail.com'
 email_status = "SEEN"
 
 # Login to email
@@ -94,15 +96,21 @@ if cols:
 
 
 if __name__ == "__main__":
-
-    df_to_sql = pd.read_csv('emails.csv', index_col=0)
-    for index,row in df_to_sql.iterrows():
-        links = row['Links']
-        for link in links:
-            print(f"Processing link: {link}")
-            soup = fetch_auction_data(link)
-            time.sleep(10)
-            auction_data = ai_response(soup)
-
-            print(auction_data)
+    print("Starting processing of links...")
+    if df['Links'].empty:
+        print("No links to process. Brak linków do przetworzenia.")
+        sys.exit()
+    else:
+        for index,row in df.iterrows():
+            links = row['Links']
+            for link in links:
+                print(f"Processing link: {link}")
+                soup = fetch_auction_data(link)
+                if not soup.get('elicytacje_links'):
+                    print("No elicytacje links found, searching with AI")
+                    auction_data = ai_response(soup['text'])
+                    print(auction_data)
+                    time.sleep(2)
+                else:
+                    print("Elicytacje links found, need to check data on another site")
 
