@@ -2,7 +2,6 @@ import email
 import pandas as pd
 import re
 from login import login
-from bs4 import BeautifulSoup
 
 
 
@@ -11,13 +10,18 @@ key = 'FROM'
 value1 = 'obwieszczenia@komornik.pl'
 email_status = "UNSEEN"
 
+# Login to email
 my_mail = login("credentials.yml")
 
+# Search for unread emails
 _,data = my_mail.search(None,key,value1,email_status)
 
+# Splitting the data to get mail ids
 mailids = data[0].split()
-print("Number of unread emails from obwieszczenia@komornik.pl:", len(mailids))
+print(f"Number of unread emails from {value1}:", len(mailids))
 
+
+# Initialize list to hold fetched messages
 msgs = []
 
 for i in mailids:
