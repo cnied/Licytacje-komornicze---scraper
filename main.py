@@ -100,12 +100,15 @@ else:
     df['Links'] = df['Body'].apply(body_regex)
     df['Timestamp'] = pd.Timestamp.now()
     df['Processed'] = False
+    df['UID'] = df['UID'].astype(str)
    #print(df['Links'])
 
-cols = [col for col in ['Subject', 'Links', 'Timestamp', 'Processed'] if col in df.columns]
+cols = [col for col in ['Subject', 'Links', 'Timestamp', 'Processed', 'UID'] if col in df.columns]
 if cols:
     df[cols].to_csv('emails.csv', index=True, encoding='utf-8-sig')
 
+
+print(df)
 
 
 if __name__ == "__main__":
@@ -115,15 +118,10 @@ if __name__ == "__main__":
         sys.exit()
     else:
         for index,row in df.iterrows():
+            print(f"Processing row {index+1}/{len(df)} with UID: {row['UID']}")
             links = row['Links']
             for link in links:
-                print(f"Processing link: {link}")
-                soup = fetch_auction_data(link)
-                if not soup.get('elicytacje_links'):
-                    print("No elicytacje links found, searching with AI")
-                    auction_data = ai_response(soup['text'])
-                    print(auction_data)
-                    time.sleep(2)
-                else:
-                    print("Elicytacje links found, need to check data on another site")
+                print(f"Processing link: {link}, Processing UID: {row['UID']}")
+                data = fetch_auction_data(link)
+
 
