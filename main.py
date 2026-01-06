@@ -4,7 +4,7 @@ import re
 import sys
 import time
 from login import login
-from bs4withAI import fetch_auction_data, ai_response
+from bs4withAI import fetch_auction_data
 
 
 
@@ -22,7 +22,8 @@ status, data = my_mail.uid(
     'search',
     None,
     'SEEN',
-    'FROM', value1
+    'FROM', 
+    value1
 )
 
 #print("data:", data)
@@ -123,5 +124,6 @@ if __name__ == "__main__":
             for link in links:
                 print(f"Processing link: {link}, Processing UID: {row['UID']}")
                 data = fetch_auction_data(link)
+                data.to_csv(f"auction_data_{row['UID']}.csv", index=False, encoding='utf-8-sig')
 
 
