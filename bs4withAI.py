@@ -8,202 +8,315 @@ from db_fulfill import save_auction
 from db_connect import db_login
 import re
 import os
+import hashlib
+from datetime import datetime, timezone
 
-
-conn,error = db_login()
-
+conn, error = db_login()
 load_dotenv(".env")
-#url = "https://licytacje.komornik.pl/Notice/Details/662790" #ten url do zabezpieczenia - po przejsciu na elicytacje blokada dostępu
-url = "https://licytacje.komornik.pl/Notice/Details/664151"
 
+url = "https://licytacje.komornik.pl/Notice/Details/664556"
 
 elicytacje_api = "https://elicytacje.komornik.pl/services/item-back/rest/item"
 elicytacje_address_api = "https://elicytacje.komornik.pl/services/item-back/rest/item/{id}/address"
 regex = r'/items/(\d+)'
 
 
+# =======================
+# HELPERS
+# =======================
+
 def elicytacje_regex(body):
-    if not body:
-        return []
-    all_links = re.findall(regex, body)
-    unique_links = list(dict.fromkeys(all_links))
-    return unique_links
+    return list(dict.fromkeys(re.findall(regex, body or "")))
 
-def clear_attachments(obj):
-    if isinstance(obj, dict):
-        new_obj = {}
-        for k, v in obj.items():
-            if k == "attachments" and isinstance(v, list):
-                new_list = []
-                for item in v:
-                    if isinstance(item, dict):
-                        new_item = {ik: None for ik in item.keys()}
-                        new_list.append(new_item)
-                    else:
-                        new_list.append(None)
-                new_obj[k] = new_list
-            else:
-                new_obj[k] = clear_attachments(v)
-        return new_obj
 
-    elif isinstance(obj, list):
-        return [clear_attachments(v) for v in obj]
+# def clear_attachments(obj):
+#     if isinstance(obj, dict):
+#         new_obj = {}
+#         for k, v in obj.items():
+#             if k == "attachments" and isinstance(v, list):
+#                 new_obj[k] = [{ik: None for ik in item.keys()} for item in v if isinstance(item, dict)]
+#             else:
+#                 new_obj[k] = clear_attachments(v)
+#         return new_obj
+#     elif isinstance(obj, list):
+#         return [clear_attachments(v) for v in obj]
+#     return obj
 
-    else:
-        return obj
-            
 
-# Inicjalizacja klienta
+def stable_id_from_url(url: str) -> int:
+    h = int(hashlib.sha256(url.encode()).hexdigest()[:16], 16)
+    return h % 9223372036854775807
+
+
+def get_category_object(category_name):
+    """
+    Mapuje nazwę kategorii na obiekt z id zgodny z bazą danych.
+    """
+    categories = {
+        "INDUSTRIAL_MACHINES": {"id": 105, "name": "maszyny przemysłowe"},
+        "LAND": {"id": 122, "name": "grunty"},
+        "HOUSES": {"id": 123, "name": "domy"},
+        "APARTMENTS": {"id": 124, "name": "mieszkania"},
+    }
+    
+    if not category_name:
+        return None
+    
+    return categories.get(category_name)
+
+
+# =======================
+# AI
+# =======================
+
 client = genai.Client()
 
-def fetch_auction_data(url):
-    html = requests.get(url, timeout=10).text
-    soup = BeautifulSoup(html, "html.parser")
+def ai_response(text: str) -> dict:
+    prompt = f"""
+Jesteś ekspertem od polskich licytacji komorniczych.
 
+DOSTAJESZ WYŁĄCZNIE TEKST OGŁOSZENIA.
+NIE MASZ dostępu do żadnych innych źródeł.
 
-    spans = soup.find_all('span', {'class' : 'value'})
-    elicytacje_spans = [span.find('a')['href'] for span in spans if span.find('a', href=True) and 'elicytacje' in span.find('a')['href']]
+TWARDY ZAKAZ DOMYŚLANIA SIĘ DANYCH.
+Jeżeli informacja:
+- NIE WYSTĘPUJE WPROST w tekście
+- JEST NIEJEDNOZNACZNA
+- MOŻE BYĆ TYLKO PRZYPUSZCZENIEM
 
-    if len(elicytacje_spans) == 0:
-        json_data_main = ai_response(soup.get_text())
-        json_data_address = None
-        print("Data downloaded from webpage")
-        #print(json_data)
+TO:
+→ USTAW JEJ WARTOŚĆ NA null
 
-    elif elicytacje_spans is not None:
-        #print(repr(elicytacje_spans[0]))
-        #print(elicytacje_regex(elicytacje_spans[0]))
-        for item in elicytacje_spans:
-            api_link = elicytacje_api + "/" + elicytacje_regex(item)[0]
-            api_main_response = requests.get(api_link, timeout=10).json()
-            print("Span item:", item)
-            api_address_response = requests.get(elicytacje_address_api.replace("{id}", elicytacje_regex(item)[0]), timeout=10).json()
-            print("API Address Response:", api_address_response)
+ZASADY:
+- NIE zgaduj roku budowy, powierzchni, liczby pokoi itp.
+- NIE zakładaj standardowych wartości.
+- NIE uzupełniaj danych „bo zwykle tak bywa".
+- Uzupełniaj TYLKO dane, które są WYRAŹNIE zapisane w tekście.
+- Jeśli masz jakąkolwiek wątpliwość → null.
+- Jeśli w tekście jest wiele wartości w tabelkach to podaj ich sumę
 
-            json_data_main = clear_attachments(api_main_response)
-            json_data_address = clear_attachments(api_address_response)
-            print("Data downloaded from API")
-            print(api_link)
-            #print(json.dumps(json_data, indent=2, ensure_ascii=False))
+**WAŻNE - FORMAT LICZB**:
+- Wszystkie liczby MUSZĄ używać kropki (.) jako separatora dziesiętnego, NIE przecinka!
+- Przykład: 2369.80 (poprawnie), NIE 2369,80 (błąd)
+- Nie używaj spacji ani przecinków jako separatorów tysięcy
 
-            try:
-                save_auction(json_data_main, json_data_address, conn)
-                print("Auction saved:", json_data_main.get("object", {}).get("id"))
-            except Exception as e:
-                print("Error saving auction:", e)
+**WAŻNE**: auctionCategory może być TYLKO jedną z tych wartości:
+- "APARTMENTS" (mieszkania)
+- "HOUSES" (domy)
+- "LAND" (grunty)
+- "INDUSTRIAL_MACHINES" (maszyny przemysłowe)
+Jeśli nie pasuje do żadnej z tych kategorii, ustaw null.
 
-            time.sleep(1)
-            #print(api_response)
-            #print(json.dumps(api_response, indent=2, ensure_ascii=False))
+Zwróć JEDEN OBIEKT JSON zgodny ze schematem:
 
+{{
+  "title": "string" | null,  # Tytuł ogłoszenia / nazwa licytowanej nieruchomości/ruchomości
+  "auctionId": "bigint" | null,  # Unikalny identyfikator licytacji
+  "auctionCategory": "string" | null,  # Kategoria: "APARTMENTS", "HOUSES", "LAND", "INDUSTRIAL_MACHINES" lub null
+  "projectLink": "string" | null,  # Link do ogłoszenia / strony aukcji
+  "estimate": number | null,  # Szacunkowa wartość nieruchomości/ruchomości w PLN, jeśli podano
+  "openingvalue": number | null,  # Wartość wywoławcza w PLN, jeśli podano
+  "margin": number | null,  # Wartość wadium w PLN, jeśli podano
+  "bidstep": number | null,  # Minimalny krok licytacji w PLN, jeśli podano
+  "startauction": "string" | null,  # Data i godzina rozpoczęcia licytacji w formacie ISO 8601, jeśli podano
+  "endauction": "string" | null,  # Data i godzina zakończenia licytacji w formacie ISO 8601, jeśli podano
+  "marginduedate": "string" | null,  # Ostateczna data wpłaty wadium w formacie ISO 8601, jeśli podano
+  "institutionname": "string" | null,  # Nazwa komornika / kancelarii
+  "city": "string" | null,             # Miasto licytowanej nieruchomości/ruchomości
+  "name": "string" | null,             # Tytuł licytowanej nieruchomości/ruchomości
 
-    return {
-        'json_data_main': json_data_main, 
-        'json_data_address': json_data_address,
-        'elicytacje_links': elicytacje_spans
-    }
+  "bailiffData": {{
+    "institutionName": "string" | null,  # Nazwa komornika / kancelarii
+    "street": "string" | null,           # Ulica komornika / kancelarii
+    "buildingNo": "string" | null,       # Numer budynku komornika / kancelarii
+    "flatNo": "string" | null,           # Numer lokalu / mieszkania komornika / kancelarii
+    "city": "string" | null,             # Miasto komornika / kancelarii
+    "zipCode": "string" | null,          # Kod pocztowy komornika / kancelarii
+    "country": "string" | null,          # Kraj komornika / kancelarii
+    "province": "string" | null,         # Województwo komornika / kancelarii
+    "bankName": "string" | null,         # Nazwa banku powiązanego z komornikiem
+    "bankIban": "string" | null          # Numer IBAN konta bankowego komornika
+  }},
 
-def ai_response(text):
-    full_prompt = f"""
-Jesteś ekspertem od danych i polskich ogłoszeń o licytacjach komorniczych.
-Na wejściu dostajesz WYŁĄCZNIE TEKST ogłoszenia (bez żadnego JSON-a z API).
+  "additionalParams": {{
+    "AREA": {{ "value": number | null, "format": "SINGLE" }},  # Powierzchnia w m² lub ha, jeśli podano
+    "NUMBEROFROOMS": {{ "value": integer | null, "format": "SINGLE" }},  # Liczba pokoi, jeśli dotyczy
+    "YEAROFCONSTRUCTION": {{ "value": integer | null, "format": "SINGLE" }},  # Rok budowy / wzniesienia budynku
+    "HOUSETYPE": {{ "value": "string" | null, "format": "SINGLE" }},  # Typ domu (np. wolnostojący, szeregowy)
+    "MEDIA": {{ "value": ["string"] | null, "format": "MULTI" }},  # Media dostępne na posesji (np. ["woda", "kanalizacja", "prąd"])
+    "SHARESIZE": {{ "value": "string" | null, "format": "SINGLE" }},  # Udział w nieruchomości (np. "1/1", "1/2")
+    "ECONOMICPURPOSE": {{ "value": "string" | null, "format": "SINGLE" }}  # Przeznaczenie nieruchomości (np. "dom mieszkalny", "nieruchomość rolna")
+  }},
 
-Twoim zadaniem jest przeczytać ten tekst i wyciągnąć z niego jak najwięcej informacji,
-zwracając jeden obiekt JSON w ściśle określonym formacie.
+  "aiGenerated": true  # Pole do oznaczenia, że JSON został wygenerowany przez AI
+}}
 
-DODATKOWE WAŻNE INFORMACJE:
-- Wszystkie dane mają pochodzić z TEKSTU ogłoszenia.
-- Dodaj pole "aiGenerated": true, aby oznaczyć, że dane powstały z analizy AI.
-
-Wymagane pola i ich znaczenie:
-
-- "title": string
-  ...
-
-- "auctionId": int | null
-  Identyfikator licytacji, jeśli jest w tekście (np. numer ogłoszenia, numer sprawy,
-  numer licytacji, itp.). Jeśli nie ma jednoznacznego numeru – ustaw null.
-
-- "auctionCategory": string | null
-  Ogólna kategoria nieruchomości, np. "REAL_ESTATE", "MOVABLES", "CARS".
-  Jeśli nie możesz jednoznacznie przypisać kategorii – ustaw null.
-
-- "projectLink": string | null
-  Link (URL) do ogłoszenia lub projektu, jeśli występuje w tekście.
-
-- "bailiffData": {{
-    "institutionName": string | null,
-    "street": string | null,
-    "buildingNo": string | null,
-    "flatNo": string | null,
-    "city": string | null,
-    "zipCode": string | null,
-    "country": string | null,
-    "province": string | null,
-    "bankName": string | null,
-    "bankIban": string | null
-  }}
-
-- "additionalParams": {{
-    "AREA": {{
-      "value": float | null,
-      "format": "SINGLE"
-    }},
-    "NUMBEROFROOMS": {{
-      "value": int | null,
-      "format": "SINGLE"
-    }},
-    "YEAROFCONSTRUCTION": {{
-      "value": int | null,
-      "format": "SINGLE"
-    }},
-    "HOUSETYPE": {{
-      "value": string | null,
-      "format": "SINGLE"
-    }},
-    "MEDIA": {{
-      "value": [ "woda" | "prad" | "gaz" | "kanalizacja" ],
-      "format": "MULTI"
-    }},
-    "SHARESIZE": {{
-      "value": string | null,
-      "format": "SINGLE"
-    }},
-    "ECONOMICPURPOSE": {{
-      "value": string | null,
-      "format": "SINGLE"
-    }}
-  }}
-
-- "aiGenerated": boolean
-  ZAWSZE ustaw na true, ponieważ wszystkie te dane pochodzą z analizy tekstu przez AI.
-
-(Zostaw wszystkie poprzednie pola: title, city, courtBailiffName, estimate, openingValue, margin,
-auctionDate, auctionTime, marginDueDate, address, placeOfAuction, KWNumber, area, shareSize,
-numberOfRooms, yearOfConstruction, houseType, media, roomsList, viewingDates.)
-
-ZASADY OGÓLNE:
-- Jeśli jakiejś informacji NIE DA SIĘ pewnie wyciągnąć z tekstu,
-  ustaw odpowiednie pole na null.
-- Wszystkie liczby zwracaj jako liczby, nie jako stringi.
-- Daty konwertuj do formatu YYYY-MM-DD, godziny do HH:MM.
-- Zwróć WYŁĄCZNIE jeden obiekt JSON w opisanym formacie, bez dodatkowego tekstu.
-
-Tekst ogłoszenia:
+TEKST OGŁOSZENIA:
 {text}
 """
+
     try:
         response = client.models.generate_content(
             model="gemma-3-27b-it",
-            contents=full_prompt
+            contents=prompt
         )
-        clean_json = response.text.replace("```json", "").replace("```", "").strip()
-        return json.loads(clean_json)
+
+        raw = response.text.strip()
+        print("raw text" + raw)
+        print("end of raw text")
+        match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
+        if match:
+            raw = match.group(1).strip()
+        elif raw == "":
+            raise ValueError("AI zwróciło pusty tekst – brak danych do parsowania JSON")
+
+        data = json.loads(raw)
+        data["aiGenerated"] = True
+        return data
+
     except Exception as e:
-        return {"error": f"Wystąpił problem: {str(e)}", "raw_response": getattr(response, 'text', 'Brak odpowiedzi')}
+        print("⚠️ AI zwróciło niepoprawny JSON lub błąd:", e)
+        # fallback - do dodania reszta parametrów [!]
+        return {
+            "title": None,
+            "auctionId": None,
+            "auctionCategory": None,
+            "projectLink": None,
+            "bailiffData": {
+                "institutionName": None,
+                "street": None,
+                "buildingNo": None,
+                "flatNo": None,
+                "city": None,
+                "zipCode": None,
+                "country": None,
+                "province": None,
+                "bankName": None,
+                "bankIban": None
+            },
+            "additionalParams": {},
+            "aiGenerated": True
+        }
+
+
+# =======================
+# AI → API ADAPTER
+# =======================
+
+def ai_to_api_object(ai_data: dict, source_url: str) -> dict:
+    """
+    Konwertuje dane zwrócone przez AI do struktury zgodnej z API.
+    """
+    auction_id = stable_id_from_url(source_url)
+    bailiff = ai_data.get("bailiffData") or {}
+    additional = ai_data.get("additionalParams") or {}
+    
+    # Extract auctionCategory from list if it's a list 
+    auction_category = ai_data.get("auctionCategory")
+    if isinstance(auction_category, list) and len(auction_category) > 0:
+        auction_category = auction_category[0]
+    
+    # Convert category string to category object with id
+    category_obj = get_category_object(auction_category)
+    
+    # Extract title from list if it's a list 
+    title = ai_data.get("title")
+    if isinstance(title, list) and len(title) > 0:
+        title = title[0]
+
+    return {
+        "object": {
+            "id": auction_id,
+            "auctionId": ai_data.get("auctionId"),
+            "name": title,
+            "city": ai_data.get("city"),
+            "institutionName": bailiff.get("institutionName"),
+            "dateCreated": datetime.now(timezone.utc).isoformat(),
+            "auctionCategory": auction_category,
+            "projectLink": ai_data.get("projectLink") or source_url,
+            "estimate": ai_data.get("estimate"),
+            "openingValue": ai_data.get("openingvalue"),
+            "margin": ai_data.get("margin"),
+            "bidStep": ai_data.get("bidstep"),
+            "startAuction": ai_data.get("startauction"),
+            "endAuction": ai_data.get("endauction"),
+            "marginDueDate": ai_data.get("marginduedate"),
+            "itemCategory": category_obj,
+            "attachments": [],
+
+            "bailiffData": {
+                "bankName": bailiff.get("bankName"),
+                "bankIban": bailiff.get("bankIban"),
+                "addressData": {
+                    "institutionName": bailiff.get("institutionName"),
+                    "address": {
+                        "street": bailiff.get("street"),
+                        "buildingNo": bailiff.get("buildingNo"),
+                        "flatNo": bailiff.get("flatNo"),
+                        "city": bailiff.get("city"),
+                        "zipCode": bailiff.get("zipCode"),
+                        "country": bailiff.get("country"),
+                        "province": bailiff.get("province"),
+                    }
+                }
+            },
+
+
+            "additionalParams": additional, 
+
+            "aiGenerated": True
+        }
+    }
+
+
+# =======================
+# MAIN
+# =======================
+
+def fetch_auction_data(url):
+    max_retries = 3
+    retry_delay = 5
+
+    html = requests.get(url, timeout=10).text
+    soup = BeautifulSoup(html, "html.parser")
+
+    spans = soup.find_all("span", {"class": "value"})
+    elicytacje_spans = [
+        span.find("a")["href"]
+        for span in spans
+        if span.find("a", href=True) and "elicytacje" in span.find("a")["href"]
+    ]
+
+    # ========= AI FALLBACK =========
+    if not elicytacje_spans:
+        for attempt in range(max_retries):
+            try:
+                ai_data = ai_response(soup.get_text())
+                api_like = ai_to_api_object(ai_data, url)
+                save_auction(api_like, None, conn)
+                print("Auction saved (AI)")
+                return {"source": "AI", "data": api_like}
+            except Exception as e:
+                print(f"⚠️ Błąd AI (próba {attempt + 1}):", e)
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                else:
+                    print("⚠️ Maximum retries reached.")
+                    return {None: None}
+
+    # ========= API =========
+    for item in elicytacje_spans:
+        item_id: list = elicytacje_regex(item)[0]
+
+        api_main = requests.get(f"{elicytacje_api}/{item_id}", timeout=10).json()
+        api_address = requests.get(
+            elicytacje_address_api.replace("{id}", item_id), timeout=10
+        ).json()
+
+        save_auction(api_main, api_address, conn)
+        print("Auction saved (API)")
+        time.sleep(1)
+
 
 if __name__ == "__main__":
-    data = fetch_auction_data(url)
-    #print(data['text'])
-    #result = ai_response(data['text'])
-    #print(json.dumps(result, indent=4, ensure_ascii=False))
+    fetch_auction_data(url)

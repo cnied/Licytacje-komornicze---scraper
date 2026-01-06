@@ -9,35 +9,39 @@ def save_auction(data, address_data=None, conn=conn):
         print("Lack of DB connection, cannot save auction.")
         return
 
-    obj = data.get("object", {}) 
+    obj = data.get("object", {})
+    ai_generated = obj.get("aiGenerated", False)
 
     with conn:
         with conn.cursor() as cur:
             # 1. item_category
             category = obj.get("itemCategory")
             item_category_id = None
-            if category:
+            if ai_generated:
+                pass  # Skip saving AI-generated categories
+            elif category:
                 item_category_id = category.get("id")
-                cur.execute(
-                    """
-                    INSERT INTO item_category (id, "key", value, category, code, externalId)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (id) DO UPDATE
-                    SET "key"      = EXCLUDED."key",
-                        value      = EXCLUDED.value,
-                        category   = EXCLUDED.category,
-                        code       = EXCLUDED.code,
-                        externalId = EXCLUDED.externalId
-                    """,
-                    (
-                        category.get("id"),
-                        category.get("key"),
-                        category.get("value"),
-                        category.get("category"),
-                        category.get("code"),
-                        category.get("externalId"),
-                    ),
-                )
+                if not ai_generated:
+                    cur.execute(
+                        """
+                        INSERT INTO item_category (id, "key", value, category, code, externalId)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (id) DO UPDATE
+                        SET "key"      = EXCLUDED."key",
+                            value      = EXCLUDED.value,
+                            category   = EXCLUDED.category,
+                            code       = EXCLUDED.code,
+                            externalId = EXCLUDED.externalId
+                        """,
+                        (
+                            category.get("id"),
+                            category.get("key"),
+                            category.get("value"),
+                            category.get("category"),
+                            category.get("code"),
+                            category.get("externalId"),
+                        ),
+                    )
 
             # 2. bailiff_data
             bailiff = obj.get("bailiffData") or {}
@@ -128,7 +132,7 @@ def save_auction(data, address_data=None, conn=conn):
                     "projectLink":     obj.get("projectLink"),
                     "itemCategoryId":  item_category_id,
                     "bailiffDataId":   bailiff_data_id,
-                    "aiGenerated":     False,
+                    "aiGenerated":     obj.get("aiGenerated"),
                 },
             )
 

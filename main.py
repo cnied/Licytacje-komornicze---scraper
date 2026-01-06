@@ -129,8 +129,7 @@ if __name__ == "__main__":
             for link in links:
                 print(f"Processing link: {link}, Processing UID: {row['UID']}")
                 data = fetch_auction_data(link)
-                json_data_main = data['json_data_main']
-                json_data_address = data['json_data_address']
+
                 
 
 

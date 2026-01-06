@@ -1,0 +1,7 @@
+beautifulsoup4==4.14.3
+pandas==2.3.3
+protobuf==6.33.2
+psycopg2==2.9.11
+python-dotenv==1.2.1
+PyYAML==6.0.3
+Requests==2.32.5
