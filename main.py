@@ -10,7 +10,7 @@ from bs4withAI import fetch_auction_data, ai_response
 
 # Search criteria
 key = 'FROM'
-value1 = 'licytacje@test.com'
+value1 = 'licytacje1@komornikid.pl'
 email_status = "SEEN"
 
 # Login to email
@@ -97,7 +97,7 @@ if cols:
 
 if __name__ == "__main__":
     print("Starting processing of links...")
-    if df['Links'].empty:
+    if 'Links' not in df.columns:
         print("No links to process. Brak linków do przetworzenia.")
         sys.exit()
     else:
