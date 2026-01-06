@@ -10,7 +10,7 @@ import os
 
 load_dotenv(".env")
 #url = "https://licytacje.komornik.pl/Notice/Details/662790" #ten url do zabezpieczenia - po przejsciu na elicytacje blokada dostępu
-url = "https://licytacje.komornik.pl/Notice/Details/663384"
+url = "https://licytacje.komornik.pl/Notice/Details/664931"
 
 
 elicytacje_api = "https://elicytacje.komornik.pl/services/item-back/rest/item"
@@ -54,12 +54,17 @@ client = genai.Client()
 def fetch_auction_data(url):
     html = requests.get(url, timeout=10).text
     soup = BeautifulSoup(html, "html.parser")
+
+
     spans = soup.find_all('span', {'class' : 'value'})
     elicytacje_spans = [span.find('a')['href'] for span in spans if span.find('a', href=True) and 'elicytacje' in span.find('a')['href']]
-    json_data = ai_response(soup.get_text())
-    print("Data downloaded from webpage")
 
-    if elicytacje_spans is not None:
+    if len(elicytacje_spans) == 0:
+        json_data = ai_response(soup.get_text())
+        print("Data downloaded from webpage")
+        print(json_data)
+
+    elif elicytacje_spans is not None:
         #print(repr(elicytacje_spans[0]))
         #print(elicytacje_regex(elicytacje_spans[0]))
         for item in elicytacje_spans:
@@ -74,7 +79,7 @@ def fetch_auction_data(url):
 
 
     return {
-        'json_data': json_data,
+        'json_data': json_data, 
         'elicytacje_links': elicytacje_spans
     }
 
@@ -101,16 +106,16 @@ Wymagane pola i ich znaczenie:
   np. "Komornik Sądowy przy Sądzie Rejonowym w Olkuszu Bartosz Kryj".
 
 - "estimate": float | null
-  Suma oszacowania nieruchomości w złotych.
+  Suma oszacowania nieruchomości/ruchomości w złotych. W przypadku kilku pozycji zrób sumę.
   Szukaj zdań typu: "Suma oszacowania wynosi 328 700,00 zł".
   Usuń spacje i kropki jako separatory tysięcy, przecinek zamień na kropkę.
 
 - "openingValue": float | null
-  Cena wywołania (cena, od której zaczyna się licytacja).
+  Cena wywołania (cena, od której zaczyna się licytacja). W przypadku kilku pozycji zrób sumę.
   Szukaj zdań typu: "cena wywołania jest równa ... zł".
 
 - "margin": float | null
-  Wysokość rękojmi (wadium) w złotych.
+  Wysokość rękojmi (wadium) w złotych. W przypadku kilku pozycji zrób sumę.
   Szukaj zdań typu: "rękojmia w wysokości ... zł".
 
 - "auctionDate": "YYYY-MM-DD" | null
@@ -132,6 +137,10 @@ Wymagane pola i ich znaczenie:
   Pełny adres nieruchomości w jednej linii,
   np. "Tarnawa 124, 32-353 Trzyciąż".
   Zbuduj z elementów typu: ulica, numer, kod pocztowy, miejscowość.
+
+- "placeOfAuction": string | null
+  Miejsce przeprowadzenia licytacji,
+    np. "w budynku Sądu Rejonowego w Olkuszu przy ul. Króla Kazimierza Wielkiego 4, pokój nr 12".
 
 - "KWNumber": string | null
   Numer księgi wieczystej.
