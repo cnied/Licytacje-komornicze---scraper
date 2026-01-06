@@ -5,9 +5,10 @@ from dotenv import load_dotenv
 from google import genai
 import os
 
-# Załaduj zmienne z .env (upewnij się, że masz tam GEMINI_API_KEY lub ustaw klucz w Client)
+
 load_dotenv(".env")
-url = "https://licytacje.komornik.pl/Notice/Details/662790"
+url = "https://licytacje.komornik.pl/Notice/Details/662790" #ten url do zabezpieczenia - po przejsciu na elicytacje blokada dostępu
+
 
 # Inicjalizacja klienta
 client = genai.Client()
@@ -17,6 +18,10 @@ def fetch_auction_data(url):
     soup = BeautifulSoup(html, "html.parser")
     spans = soup.find_all('span', {'class' : 'value'})
     elicytacje_spans = [span.find('a')['href'] for span in spans if span.find('a', href=True) and 'elicytacje' in span.find('a')['href']]
+
+    #if elicytacje_spans is not None:
+
+
     
     return {
         'text': soup.get_text(separator="\n", strip=True),
@@ -30,12 +35,18 @@ def ai_response(text):
     Zwróć dane WYŁĄCZNIE jako czysty obiekt JSON (bez markdownu, bez ```json).
     
     Wymagane pola:
-    - suma_oszacowania (int)
-    - cena_wywolawcza (int)
+    - suma_oszacowania (float)
+    - cena_wywolawcza (float)
+    - rekojmia (float)
+    - zlozenie_rekojmi_do (format YYYY-MM-DD HH:MM)
     - data_licytacji (format YYYY-MM-DD)
     - godzina_licytacji (format HH:MM)
     - adres (string)
     - sygnatura (string)
+    - powierzchnia (float, w metrach kwadratowych)
+    - media (lista stringów: "woda", "prad", "gaz", "kanalizacja" jeśli występują)
+    - wielkosc_udzialu (string)
+    - daty_ogledzin (lista obiektów z polami: data (YYYY-MM-DD), godzina_od (HH:MM), godzina_do (HH:MM))
     - nr_ksiegi_wieczystej (string)
 
     Tekst ogłoszenia:
