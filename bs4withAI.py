@@ -4,16 +4,21 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from google import genai
 import time
+from db_fulfill import save_auction
+from db_connect import db_login
 import re
 import os
 
 
+conn,error = db_login()
+
 load_dotenv(".env")
 #url = "https://licytacje.komornik.pl/Notice/Details/662790" #ten url do zabezpieczenia - po przejsciu na elicytacje blokada dostępu
-url = "https://licytacje.komornik.pl/Notice/Details/664931"
+url = "https://licytacje.komornik.pl/Notice/Details/664151"
 
 
 elicytacje_api = "https://elicytacje.komornik.pl/services/item-back/rest/item"
+elicytacje_address_api = "https://elicytacje.komornik.pl/services/item-back/rest/item/{id}/address"
 regex = r'/items/(\d+)'
 
 
@@ -60,26 +65,41 @@ def fetch_auction_data(url):
     elicytacje_spans = [span.find('a')['href'] for span in spans if span.find('a', href=True) and 'elicytacje' in span.find('a')['href']]
 
     if len(elicytacje_spans) == 0:
-        json_data = ai_response(soup.get_text())
+        json_data_main = ai_response(soup.get_text())
+        json_data_address = None
         print("Data downloaded from webpage")
-        print(json_data)
+        #print(json_data)
 
     elif elicytacje_spans is not None:
         #print(repr(elicytacje_spans[0]))
         #print(elicytacje_regex(elicytacje_spans[0]))
         for item in elicytacje_spans:
             api_link = elicytacje_api + "/" + elicytacje_regex(item)[0]
-            api_response = requests.get(api_link, timeout=10).json()
-            json_data = clear_attachments(api_response)
+            api_main_response = requests.get(api_link, timeout=10).json()
+            print("Span item:", item)
+            api_address_response = requests.get(elicytacje_address_api.replace("{id}", elicytacje_regex(item)[0]), timeout=10).json()
+            print("API Address Response:", api_address_response)
+
+            json_data_main = clear_attachments(api_main_response)
+            json_data_address = clear_attachments(api_address_response)
             print("Data downloaded from API")
             print(api_link)
+            #print(json.dumps(json_data, indent=2, ensure_ascii=False))
+
+            try:
+                save_auction(json_data_main, json_data_address, conn)
+                print("Auction saved:", json_data_main.get("object", {}).get("id"))
+            except Exception as e:
+                print("Error saving auction:", e)
+
             time.sleep(1)
             #print(api_response)
             #print(json.dumps(api_response, indent=2, ensure_ascii=False))
 
 
     return {
-        'json_data': json_data, 
+        'json_data_main': json_data_main, 
+        'json_data_address': json_data_address,
         'elicytacje_links': elicytacje_spans
     }
 
@@ -91,110 +111,76 @@ Na wejściu dostajesz WYŁĄCZNIE TEKST ogłoszenia (bez żadnego JSON-a z API).
 Twoim zadaniem jest przeczytać ten tekst i wyciągnąć z niego jak najwięcej informacji,
 zwracając jeden obiekt JSON w ściśle określonym formacie.
 
+DODATKOWE WAŻNE INFORMACJE:
+- Wszystkie dane mają pochodzić z TEKSTU ogłoszenia.
+- Dodaj pole "aiGenerated": true, aby oznaczyć, że dane powstały z analizy AI.
+
 Wymagane pola i ich znaczenie:
 
 - "title": string
-  Opis / nazwa licytowanego przedmiotu (np. dom, mieszkanie, działka),
-  zwykle w pierwszych liniach ogłoszenia lub wyraźnie jako tytuł.
+  ...
 
-- "city": string
-  Miejscowość, w której położona jest nieruchomość.
-  Szukaj fragmentów typu: "położonej pod adresem: ..., <miasto>", "w miejscowości ...".
+- "auctionId": int | null
+  Identyfikator licytacji, jeśli jest w tekście (np. numer ogłoszenia, numer sprawy,
+  numer licytacji, itp.). Jeśli nie ma jednoznacznego numeru – ustaw null.
 
-- "courtBailiffName": string
-  Nazwa komornika i sądu prowadzącego egzekucję,
-  np. "Komornik Sądowy przy Sądzie Rejonowym w Olkuszu Bartosz Kryj".
+- "auctionCategory": string | null
+  Ogólna kategoria nieruchomości, np. "REAL_ESTATE", "MOVABLES", "CARS".
+  Jeśli nie możesz jednoznacznie przypisać kategorii – ustaw null.
 
-- "estimate": float | null
-  Suma oszacowania nieruchomości/ruchomości w złotych. W przypadku kilku pozycji zrób sumę.
-  Szukaj zdań typu: "Suma oszacowania wynosi 328 700,00 zł".
-  Usuń spacje i kropki jako separatory tysięcy, przecinek zamień na kropkę.
+- "projectLink": string | null
+  Link (URL) do ogłoszenia lub projektu, jeśli występuje w tekście.
 
-- "openingValue": float | null
-  Cena wywołania (cena, od której zaczyna się licytacja). W przypadku kilku pozycji zrób sumę.
-  Szukaj zdań typu: "cena wywołania jest równa ... zł".
+- "bailiffData": {{
+    "institutionName": string | null,
+    "street": string | null,
+    "buildingNo": string | null,
+    "flatNo": string | null,
+    "city": string | null,
+    "zipCode": string | null,
+    "country": string | null,
+    "province": string | null,
+    "bankName": string | null,
+    "bankIban": string | null
+  }}
 
-- "margin": float | null
-  Wysokość rękojmi (wadium) w złotych. W przypadku kilku pozycji zrób sumę.
-  Szukaj zdań typu: "rękojmia w wysokości ... zł".
-
-- "auctionDate": "YYYY-MM-DD" | null
-  Data rozpoczęcia licytacji.
-  Szukaj fragmentów typu: "w dniu 31/12/2025 r.".
-  Zamień format DD/MM/RRRR lub DD.MM.RRRR na YYYY-MM-DD.
-
-- "auctionTime": "HH:MM" | null
-  Godzina rozpoczęcia licytacji.
-  Szukaj fragmentów typu: "o godz. 09:00", wynik zwróć jako "09:00".
-
-- "marginDueDate": "YYYY-MM-DD HH:MM" | null
-  Termin złożenia rękojmi (data i godzina).
-  Szukaj zdań typu: "najpóźniej na 2 dni robocze przed rozpoczęciem przetargu"
-  lub bezpośrednio podanej daty z godziną.
-  Jeśli znajdziesz tylko datę lub tylko godzinę, użyj null.
-
-- "address": string | null
-  Pełny adres nieruchomości w jednej linii,
-  np. "Tarnawa 124, 32-353 Trzyciąż".
-  Zbuduj z elementów typu: ulica, numer, kod pocztowy, miejscowość.
-
-- "placeOfAuction": string | null
-  Miejsce przeprowadzenia licytacji,
-    np. "w budynku Sądu Rejonowego w Olkuszu przy ul. Króla Kazimierza Wielkiego 4, pokój nr 12".
-
-- "KWNumber": string | null
-  Numer księgi wieczystej.
-  Szukaj fragmentów typu: "księgę wieczystą o numerze KR1O/00056050/6".
-
-- "area": float | null
-  Powierzchnia działki lub budynku w metrach kwadratowych.
-  Preferuj ogólną powierzchnię nieruchomości,
-  np. "Powierzchnia użytkowa budynku mieszkalnego wynosi 64,01 m2".
-  Zamień przecinek na kropkę.
-
-- "shareSize": string | null
-  Wielkość udziału, np. "1/1".
-  Szukaj fraz typu: "Wielkość udziału 1/1".
-
-- "numberOfRooms": int | null
-  Liczba pokoi.
-  Szukaj fraz typu: "Liczba pokoi 3" lub opisu "trzypokojowe".
-
-- "yearOfConstruction": int | null
-  Rok budowy.
-  Szukaj fraz typu: "Rok budowy 1940".
-
-- "houseType": string | null
-  Typ zabudowy, np. "wolnostojący", "szeregowy", "bliźniak".
-  Szukaj fraz typu: "Rodzaj domu wolnostojący".
-
-- "media": [ "woda" | "prad" | "gaz" | "kanalizacja" ]
-  Lista dostępnych mediów.
-  Mapowanie:
-    - jeśli w tekście jest "woda" → dodaj "woda",
-    - "energia elektryczna", "prąd", "siła" → dodaj "prad",
-    - "gaz" → dodaj "gaz",
-    - "kanalizacja", "zbiornik na ścieki", "oczyszczalnia" → dodaj "kanalizacja".
-  Nie duplikuj wartości, zwróć listę unikalnych.
-
-- "roomsList": [string] | null
-  Lista pomieszczeń, jeśli są wyliczone,
-  np. "kuchnia, łazienka, pokój, salon".
-
-- "viewingDates": [
-    {{
-      "date": "YYYY-MM-DD",
-      "timeFrom": "HH:MM",
-      "timeTo": "HH:MM"
+- "additionalParams": {{
+    "AREA": {{
+      "value": float | null,
+      "format": "SINGLE"
+    }},
+    "NUMBEROFROOMS": {{
+      "value": int | null,
+      "format": "SINGLE"
+    }},
+    "YEAROFCONSTRUCTION": {{
+      "value": int | null,
+      "format": "SINGLE"
+    }},
+    "HOUSETYPE": {{
+      "value": string | null,
+      "format": "SINGLE"
+    }},
+    "MEDIA": {{
+      "value": [ "woda" | "prad" | "gaz" | "kanalizacja" ],
+      "format": "MULTI"
+    }},
+    "SHARESIZE": {{
+      "value": string | null,
+      "format": "SINGLE"
+    }},
+    "ECONOMICPURPOSE": {{
+      "value": string | null,
+      "format": "SINGLE"
     }}
-  ] | []
-  Terminy oględzin nieruchomości.
-  Szukaj fragmentów typu:
-  "W ciągu dwóch ostatnich tygodni przed licytacją wolno oglądać lokal
-   w dni powszednie od godz. 8.00 do godz. 18.00".
-  Jeśli jest tylko ogólny zakres (jak powyżej), możesz zbudować jeden wpis
-  z datą null i tylko godzinami lub zwrócić pustą listę, jeśli nie da się
-  jednoznacznie zidentyfikować dat.
+  }}
+
+- "aiGenerated": boolean
+  ZAWSZE ustaw na true, ponieważ wszystkie te dane pochodzą z analizy tekstu przez AI.
+
+(Zostaw wszystkie poprzednie pola: title, city, courtBailiffName, estimate, openingValue, margin,
+auctionDate, auctionTime, marginDueDate, address, placeOfAuction, KWNumber, area, shareSize,
+numberOfRooms, yearOfConstruction, houseType, media, roomsList, viewingDates.)
 
 ZASADY OGÓLNE:
 - Jeśli jakiejś informacji NIE DA SIĘ pewnie wyciągnąć z tekstu,
@@ -206,17 +192,13 @@ ZASADY OGÓLNE:
 Tekst ogłoszenia:
 {text}
 """
-
-
     try:
         response = client.models.generate_content(
             model="gemma-3-27b-it",
             contents=full_prompt
         )
-        
         clean_json = response.text.replace("```json", "").replace("```", "").strip()
         return json.loads(clean_json)
-        
     except Exception as e:
         return {"error": f"Wystąpił problem: {str(e)}", "raw_response": getattr(response, 'text', 'Brak odpowiedzi')}
 

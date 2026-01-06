@@ -1,105 +1,242 @@
 from db_connect import db_login
-import pandas as pd
 
 conn, error = db_login()
 
 
-def create_table_if_not_exists(conn,error):
-    if error:
-        print("Nie można utworzyć tabeli z powodu błędu połączenia z bazą.")
+def create_tables_if_not_exists(conn, error):
+    if error or conn is None:
+        print("Error: Cannot create tables without a database connection.")
         return
 
-auction_item = """
+    itemCategory = """
+    CREATE TABLE IF NOT EXISTS item_category (
+        id         BIGINT PRIMARY KEY,
+        "key"      INTEGER,
+        value      TEXT,
+        category   TEXT,
+        code       TEXT,
+        externalId BIGINT
+    );
+    """
+
+    bailiffData = """
+    CREATE TABLE IF NOT EXISTS bailiff_data (
+        id              BIGSERIAL PRIMARY KEY,
+        institutionName TEXT,
+        street          TEXT,
+        buildingNo      TEXT,
+        flatNo          TEXT,
+        city            TEXT,
+        zipCode         TEXT,
+        country         TEXT,
+        province        TEXT,
+        bankName        TEXT,
+        bankIban        TEXT
+    );
+    """
+
+    auction_item = """
     CREATE TABLE IF NOT EXISTS auction_item (
-    id                  BIGINT PRIMARY KEY,          -- z API: object.id
-    external_id         BIGINT,                     -- auctionId
-    name                TEXT NOT NULL,
-    city                TEXT,
-    institution_name    TEXT,
-    date_created        TIMESTAMP WITH TIME ZONE,
-    start_auction       TIMESTAMP WITH TIME ZONE,
-    end_auction         TIMESTAMP WITH TIME ZONE,
-    margin_due_date     TIMESTAMP WITH TIME ZONE,
-    estimate            NUMERIC(15,2),
-    opening_value       NUMERIC(15,2),
-    margin              NUMERIC(15,2),
-    bid_step            NUMERIC(15,2),
-    auction_category    TEXT,
-    project_link        TEXT
-);
+        id              BIGINT PRIMARY KEY,   -- object.id
+        auctionId       BIGINT,               -- auctionId
+        name            TEXT,
+        city            TEXT,
+        institutionName TEXT,
+        dateCreated     TIMESTAMPTZ,
+        startAuction    TIMESTAMPTZ,
+        endAuction      TIMESTAMPTZ,
+        marginDueDate   TIMESTAMPTZ,
+        estimate        NUMERIC(15,2),
+        openingValue    NUMERIC(15,2),
+        margin          NUMERIC(15,2),
+        bidStep         NUMERIC(15,2),
+        auctionCategory TEXT,
+        projectLink     TEXT,
+        itemCategoryId  BIGINT,
+        bailiffDataId   BIGINT,
+        aiGenerated     BOOLEAN DEFAULT FALSE
+    );
     """
 
-itemCategory = """
-    CREATE TABLE item_category (
-    id           BIGINT PRIMARY KEY,
-    key          INTEGER,
-    value        TEXT,
-    category     TEXT,
-    code         TEXT,
-    external_id  BIGINT
-);
-
-ALTER TABLE auction_item
-    ADD COLUMN item_category_id BIGINT
-        REFERENCES item_category(id);
+    auction_attachment = """
+    CREATE TABLE IF NOT EXISTS auction_attachment (
+        id               BIGSERIAL PRIMARY KEY,
+        auctionId        BIGINT NOT NULL,
+        fileName         TEXT,
+        fileContent      TEXT,      -- base64
+        fileContentSmall TEXT,      -- base64
+        defAttach        BOOLEAN,
+        width            INTEGER,
+        height           INTEGER,
+        sizeType         TEXT
+    );
     """
 
-auction_attachment = """
-CREATE TABLE auction_attachment (
-    id              BIGSERIAL PRIMARY KEY,
-    auction_id      BIGINT NOT NULL REFERENCES auction_item(id),
-    file_name       TEXT NOT NULL,
-    file_content    TEXT,      -- base64 jako TEXT
-    file_content_small TEXT,   -- też base64
-    def_attach      BOOLEAN,
-    width           INTEGER,
-    height          INTEGER,
-    size_type       TEXT
-);
-"""
+    auction_additional_param = """
+    CREATE TABLE IF NOT EXISTS auction_additional_param (
+        id        BIGSERIAL PRIMARY KEY,
+        auctionId BIGINT NOT NULL,
+        paramKey  TEXT NULL,   -- 'AREA', 'NUMBEROFROOMS', ...
+        value     TEXT NULL,   -- np. '363.4', '6', 'wolnostojący'
+        format    TEXT         -- 'SINGLE' / 'MULTI'
+    );
+    """
 
-bailiffData = """
-CREATE TABLE bailiff_data (
-    id              BIGSERIAL PRIMARY KEY,
-    institution_name TEXT,
-    street          TEXT,
-    building_no     TEXT,
-    flat_no         TEXT,
-    city            TEXT,
-    zip_code        TEXT,
-    country         TEXT,
-    province        TEXT,
-    bank_name       TEXT,
-    bank_iban       TEXT
-);
-
-ALTER TABLE auction_item
-    ADD COLUMN bailiff_data_id BIGINT
-        REFERENCES bailiff_data(id);
-
-"""
-auction_additional_param = """
-CREATE TABLE auction_additional_param (
-    id          BIGSERIAL PRIMARY KEY,
-    auction_id  BIGINT NOT NULL REFERENCES auction_item(id),
-    param_key   TEXT NOT NULL,      -- 'AREA', 'NUMBEROFROOMS', ...
-    value       TEXT NOT NULL,      -- np. '363.4', '6', 'wolnostojący'
-    format      TEXT                -- 'SINGLE' / 'MULTI'
-);
-
-"""
-
-try:
-    cursor = conn.cursor()
-    cursor.execute(auction_item)
-    cursor.execute(itemCategory)
-    cursor.execute(auction_attachment)
-    cursor.execute(bailiffData)
-    cursor.execute(auction_additional_param)
-    conn.commit()
-    cursor.close()
-    print("Tables have been created or already exist.")
-except Exception as e:
-    print("Error creating tables:", e)
+    auction_item_address = """
+    CREATE TABLE IF NOT EXISTS auction_item_address (
+        id              BIGSERIAL PRIMARY KEY,
+        auctionId       BIGINT NOT NULL,
+        institutionName TEXT,
+        foreignAddress  BOOLEAN NOT NULL DEFAULT FALSE,
+        streetPrefix    TEXT,
+        street          TEXT,
+        buildingNo      TEXT,
+        flatNo          TEXT,
+        city            TEXT,
+        zipCode         TEXT,
+        postOffice      TEXT,
+        country         TEXT,
+        province        TEXT,
+        district        TEXT,
+        community       TEXT
+    );
+    """
 
 
+    fk_itemcategory = """
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'auction_item_itemcategoryid_fkey'
+        ) THEN
+            ALTER TABLE auction_item
+                ADD CONSTRAINT auction_item_itemcategoryid_fkey
+                FOREIGN KEY (itemCategoryId) REFERENCES item_category(id);
+        END IF;
+    END$$;
+    """
+
+    fk_bailiffdata = """
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'auction_item_bailiffdataid_fkey'
+        ) THEN
+            ALTER TABLE auction_item
+                ADD CONSTRAINT auction_item_bailiffdataid_fkey
+                FOREIGN KEY (bailiffDataId) REFERENCES bailiff_data(id);
+        END IF;
+    END$$;
+    """
+
+    fk_attachment_auction = """
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'auction_attachment_auctionid_fkey'
+        ) THEN
+            ALTER TABLE auction_attachment
+                ADD CONSTRAINT auction_attachment_auctionid_fkey
+                FOREIGN KEY (auctionId) REFERENCES auction_item(id);
+        END IF;
+    END$$;
+    """
+
+    fk_param_auction = """
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'auction_additional_param_auctionid_fkey'
+        ) THEN
+            ALTER TABLE auction_additional_param
+                ADD CONSTRAINT auction_additional_param_auctionid_fkey
+                FOREIGN KEY (auctionId) REFERENCES auction_item(id);
+        END IF;
+    END$$;
+    """
+
+    fk_address_auction = """
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'auction_item_address_auctionid_fkey'
+        ) THEN
+            ALTER TABLE auction_item_address
+                ADD CONSTRAINT auction_item_address_auctionid_fkey
+                FOREIGN KEY (auctionId) REFERENCES auction_item(id);
+        END IF;
+    END$$;
+    """
+
+    fk_address_unique = """
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'auction_item_address_auctionid_key'
+        ) THEN
+            ALTER TABLE auction_item_address
+                ADD CONSTRAINT auction_item_address_auctionid_key
+                UNIQUE (auctionId);
+        END IF;
+    END$$;
+    """
+
+    bailiff_unique = """
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'bailiff_data_unique_key'
+        ) THEN
+            ALTER TABLE bailiff_data
+                ADD CONSTRAINT bailiff_data_unique_key
+                UNIQUE (
+                    institutionName,
+                    street,
+                    buildingNo,
+                    flatNo,
+                    city,
+                    zipCode,
+                    country,
+                    province,
+                    bankName,
+                    bankIban
+                );
+        END IF;
+    END$$;
+    """
+
+    commands = [
+        itemCategory,
+        bailiffData,
+        auction_item,
+        auction_attachment,
+        auction_additional_param,
+        auction_item_address,
+        fk_itemcategory,
+        fk_bailiffdata,
+        fk_attachment_auction,
+        fk_param_auction,
+        fk_address_auction,
+        fk_address_unique,
+        bailiff_unique,
+    ]
+
+    try:
+        with conn:
+            with conn.cursor() as cursor:
+                for cmd in commands:
+                    cursor.execute(cmd)
+        print("Tables have been created or already exist.")
+    except Exception as e:
+        print("Error creating tables:", e)
+
+
+if __name__ == "__main__":
+    create_tables_if_not_exists(conn, error)

@@ -5,8 +5,11 @@ import sys
 import time
 from login import login
 from bs4withAI import fetch_auction_data
+from table_creation import create_tables_if_not_exists
+from db_connect import db_login
 
 
+conn,error = db_login()
 
 # Search criteria
 value1 = 'licytacje1@komornikid.pl'
@@ -113,6 +116,8 @@ print(df)
 
 
 if __name__ == "__main__":
+    create_tables_if_not_exists(conn,error)
+
     print("Starting processing of links...")
     if 'Links' not in df.columns:
         print("No links to process. Brak linków do przetworzenia.")
@@ -124,6 +129,8 @@ if __name__ == "__main__":
             for link in links:
                 print(f"Processing link: {link}, Processing UID: {row['UID']}")
                 data = fetch_auction_data(link)
-                data.to_csv(f"auction_data_{row['UID']}.csv", index=False, encoding='utf-8-sig')
+                json_data_main = data['json_data_main']
+                json_data_address = data['json_data_address']
+                
 
 
