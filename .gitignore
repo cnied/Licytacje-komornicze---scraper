@@ -3,6 +3,7 @@ venv/
 credentials.yml
 emails.csv
 __pycache__/
+logs/
 
 # Claude Code
 CLAUDE.md

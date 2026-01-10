@@ -6,6 +6,9 @@ from src.login import login
 from src.bs4withAI import fetch_auction_data
 from src.table_creation import create_tables_if_not_exists
 from src.db_connect import db_login
+from src.logger import setup_logger
+
+
 
 
 MY_SYNTAX = r'https://licytacje\.komornik\.pl/Notice/Details'
@@ -20,6 +23,9 @@ def body_regex(body):
 
 
 def main():
+    logger = setup_logger()
+    logger.info("Starting the application")
+
     conn, error = db_login()
 
     # Search criteria
@@ -50,15 +56,14 @@ def main():
         uid = i.decode('ascii')
         typ, data = my_mail.uid('fetch', uid, '(BODY.PEEK[])')
         if data is None or not data or len(data) == 0:
-            print("No data for UID:", uid)
+            logger.error("No data for UID: %s", uid)
             continue
         if data[0] is None:
-            print("No email content for UID:", uid)
+            logger.error("No email content for UID: %s", uid)
             continue
         raw_email = data[0][1] + ("UID: " + uid + "\n").encode('utf-8')
         msgs.append((raw_email, uid))
-        print(f"UID {uid}, Length: {len(raw_email)}")
-
+        logger.info("UID %s, Length: %s", uid, len(raw_email))
     rows = []
 
     for raw_email, uid in msgs:
@@ -82,12 +87,12 @@ def main():
             'Subject': email_subject,
             'Body': email_body
         })
-        print(f"✓ Parsed: {email_subject[:50]}, UID: {uid}")
+        logger.info("Parsed: %s, UID: %s", email_subject[:50], uid)
 
     df = pd.DataFrame(rows)
 
     if df.empty:
-        print("No emails found.")
+        logger.error("No emails found.")
     else:
         df['Links'] = df['Body'].apply(body_regex)
         df['Timestamp'] = pd.Timestamp.now()
@@ -98,21 +103,21 @@ def main():
     if cols:
         df[cols].to_csv('emails.csv', index=True, encoding='utf-8-sig')
 
-    print(df)
+    #print(df)
 
     # Process auction links
     create_tables_if_not_exists(conn, error)
 
     print("Starting processing of links...")
     if 'Links' not in df.columns:
-        print("No links to process. Brak linków do przetworzenia.")
+        logger.error("No links to process. Brak linków do przetworzenia.")
         sys.exit()
 
     for index, row in df.iterrows():
-        print(f"Processing row {index+1}/{len(df)} with UID: {row['UID']}")
+        logger.info("Processing row %s/%s with UID: %s", index+1, len(df), row['UID'])
         links = row['Links']
         for link in links:
-            print(f"Processing link: {link}, Processing UID: {row['UID']}")
+            logger.info("Processing link: %s, Processing UID: %s", link, row['UID'])
             fetch_auction_data(link)
 
 

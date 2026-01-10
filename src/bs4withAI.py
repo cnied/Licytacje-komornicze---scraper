@@ -4,8 +4,8 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from google import genai
 import time
-from src.db_fulfill import save_auction
-from src.db_connect import db_login
+from .db_fulfill import save_auction
+from .db_connect import db_login
 import re
 import os
 import hashlib
@@ -162,8 +162,8 @@ TEKST OGŁOSZENIA:
         )
 
         raw = response.text.strip()
-        print("raw text" + raw)
-        print("end of raw text")
+        #print("raw text" + raw)
+        #print("end of raw text")
         match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
         if match:
             raw = match.group(1).strip()
@@ -302,7 +302,7 @@ def fetch_auction_data(url):
                     time.sleep(retry_delay)
                 else:
                     print("⚠️ Maximum retries reached.")
-                    return {None: None}
+                    return {"source": None, "data":  None}
 
     # ========= API =========
     for item in elicytacje_spans:

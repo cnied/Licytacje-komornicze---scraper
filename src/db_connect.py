@@ -2,6 +2,10 @@ import os
 import psycopg2
 from dotenv import load_dotenv
 from psycopg2 import OperationalError, Error
+from src.logger import setup_logger
+
+
+logger = setup_logger()
 
 load_dotenv(".env")
 
@@ -20,12 +24,13 @@ def db_login():
             host=DB_HOST,
             port=DB_PORT,
         )
+        logger.info("Successfully connected to PostgreSQL")
         return conn, None
     except OperationalError as e:
-        print("Error while connecting to PostgreSQL:", e)
+        logger.error("Error while connecting to PostgreSQL: %s", e)
         return None, e
     except Error as e:
-        print("Other error:", e)
+        logger.error("Other error: %s", e)
         return None, e
 
 if __name__ == "__main__":

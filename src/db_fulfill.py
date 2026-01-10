@@ -1,12 +1,14 @@
 from src.db_connect import db_login
+from src.logger import setup_logger
 
 
 conn, error = db_login()
+logger = setup_logger()
 
 
 def save_auction(data, address_data=None, conn=conn):
     if conn is None:
-        print("Lack of DB connection, cannot save auction.")
+        logger.error("Lack of DB connection, cannot save auction.")
         return
 
     obj = data.get("object", {})
@@ -22,6 +24,7 @@ def save_auction(data, address_data=None, conn=conn):
             elif category:
                 item_category_id = category.get("id")
                 if not ai_generated:
+                    logger.info("Saving item category: %s", item_category_id)
                     cur.execute(
                         """
                         INSERT INTO item_category (id, "key", value, category, code, externalId)
