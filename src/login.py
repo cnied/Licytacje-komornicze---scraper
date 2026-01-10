@@ -1,15 +1,28 @@
 import imaplib
 import yaml
+from dotenv import load_dotenv
+from src.logger import setup_logger
+import os
 
+logger = setup_logger()
+load_dotenv(".env")
+
+USER = os.getenv("USER")
+PASSWORD = os.getenv("PASSWORD")
 
 def login(credentials_path="credentials.yml"):
-    with open(credentials_path, "r") as file:
-        content = file.read()
-
-    credentials = yaml.safe_load(content)
-    user,password = credentials["user"], credentials["password"]
+    logger.info("Logging in to email")
     imap_url = 'imap.gmail.com'
     my_mail = imaplib.IMAP4_SSL(imap_url)
-    my_mail.login(user, password)
-    my_mail.select('Inbox')
+    try:
+        my_mail.login(USER, PASSWORD)
+    except Exception as e:
+        logger.error("Error logging in to email: %s", e)
+        return None
+    try:
+        my_mail.select('Inbox')
+    except Exception as e:
+        logger.error("Error selecting inbox: %s", e)
+        return None
+    logger.info("Logged in to email")
     return my_mail
