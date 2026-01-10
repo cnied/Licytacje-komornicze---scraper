@@ -1,4 +1,4 @@
-from db_connect import db_login
+from src.db_connect import db_login
 
 conn, error = db_login()
 
@@ -212,6 +212,51 @@ def create_tables_if_not_exists(conn, error):
     END$$;
     """
 
+    # Usunięcie duplikatów przed dodaniem UNIQUE constraints
+    cleanup_attachment_duplicates = """
+    DELETE FROM auction_attachment a
+    USING auction_attachment b
+    WHERE a.id < b.id
+      AND a.auctionId = b.auctionId
+      AND a.fileName = b.fileName;
+    """
+
+    cleanup_param_duplicates = """
+    DELETE FROM auction_additional_param a
+    USING auction_additional_param b
+    WHERE a.id < b.id
+      AND a.auctionId = b.auctionId
+      AND a.paramKey = b.paramKey;
+    """
+
+    attachment_unique = """
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'auction_attachment_unique_key'
+        ) THEN
+            ALTER TABLE auction_attachment
+                ADD CONSTRAINT auction_attachment_unique_key
+                UNIQUE (auctionId, fileName);
+        END IF;
+    END$$;
+    """
+
+    param_unique = """
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'auction_additional_param_unique_key'
+        ) THEN
+            ALTER TABLE auction_additional_param
+                ADD CONSTRAINT auction_additional_param_unique_key
+                UNIQUE (auctionId, paramKey);
+        END IF;
+    END$$;
+    """
+
     commands = [
         itemCategory,
         bailiffData,
@@ -226,6 +271,11 @@ def create_tables_if_not_exists(conn, error):
         fk_address_auction,
         fk_address_unique,
         bailiff_unique,
+        # Cleanup duplikatów i UNIQUE constraints
+        cleanup_attachment_duplicates,
+        cleanup_param_duplicates,
+        attachment_unique,
+        param_unique,
     ]
 
     try:

@@ -1,4 +1,4 @@
-from db_connect import db_login
+from src.db_connect import db_login
 
 
 conn, error = db_login()
@@ -198,6 +198,14 @@ def save_auction(data, address_data=None, conn=conn):
                         fileContentSmall, defAttach, width, height, sizeType
                     )
                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                    ON CONFLICT ON CONSTRAINT auction_attachment_unique_key
+                    DO UPDATE SET
+                        fileContent = EXCLUDED.fileContent,
+                        fileContentSmall = EXCLUDED.fileContentSmall,
+                        defAttach = EXCLUDED.defAttach,
+                        width = EXCLUDED.width,
+                        height = EXCLUDED.height,
+                        sizeType = EXCLUDED.sizeType
                     """,
                     (
                         auction_id,
@@ -226,6 +234,10 @@ def save_auction(data, address_data=None, conn=conn):
                         auctionId, paramKey, value, format
                     )
                     VALUES (%s,%s,%s,%s)
+                    ON CONFLICT ON CONSTRAINT auction_additional_param_unique_key
+                    DO UPDATE SET
+                        value = EXCLUDED.value,
+                        format = EXCLUDED.format
                     """,
                     (auction_id, key, value_str, fmt),
                 )

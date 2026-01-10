@@ -4,8 +4,8 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from google import genai
 import time
-from db_fulfill import save_auction
-from db_connect import db_login
+from src.db_fulfill import save_auction
+from src.db_connect import db_login
 import re
 import os
 import hashlib
