@@ -1,9 +1,12 @@
+from socket import SOL_UDP
+from urllib.request import url2pathname
 import requests
 import json
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from google import genai
 import time
+import pandas as pd
 from .db_fulfill import save_auction
 from .logger import setup_logger
 from .db_connect import db_login
@@ -74,7 +77,7 @@ def get_category_object(category_name):
 
 client = genai.Client()
 
-def ai_response(text: str) -> dict:
+def ai_response(text: str, max_retries = 3, retry_delay = 30) -> dict:
     prompt = f"""
 Jesteś ekspertem od polskich licytacji komorniczych.
 
@@ -96,7 +99,15 @@ ZASADY:
 - NIE uzupełniaj danych „bo zwykle tak bywa".
 - Uzupełniaj TYLKO dane, które są WYRAŹNIE zapisane w tekście.
 - Jeśli masz jakąkolwiek wątpliwość → null.
-- Jeśli w tekście jest wiele wartości w tabelkach to podaj ich sumę
+
+**WAŻNE - TABELE Z WIELOMA POZYCJAMI**:
+Jeśli ogłoszenie zawiera tabelę (<table>) z wieloma ruchomościami/nieruchomościami:
+- "estimate" = SUMA wszystkich wartości z kolumny "Suma oszacowania"
+- "openingvalue" = SUMA wszystkich wartości z kolumny "Cena wywołania"
+- "margin" = 1/10 sumy oszacowania (rękojmia)
+- "bidstep" = null (różne dla każdej pozycji)
+- "name" = ogólny opis np. "Licytacja ruchomości - 4 pojazdy ciężarowe"
+Przykład: jeśli tabela ma pozycje 36000 zł, 49000 zł, 53900 zł, 27400 zł to estimate = 166300
 
 **WAŻNE - FORMAT LICZB**:
 - Wszystkie liczby MUSZĄ używać kropki (.) jako separatora dziesiętnego, NIE przecinka!
@@ -157,49 +168,53 @@ Zwróć JEDEN OBIEKT JSON zgodny ze schematem:
 TEKST OGŁOSZENIA:
 {text}
 """
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model="gemma-3-27b-it",
+                contents=prompt
+            )
 
-    try:
-        response = client.models.generate_content(
-            model="gemma-3-27b-it",
-            contents=prompt
-        )
+            raw = response.text.strip()
+            #print("raw text" + raw)
+            #print("end of raw text")
+            match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
+            if match:
+                raw = match.group(1).strip()
+            elif raw == "":
+                raise ValueError("AI zwróciło pusty tekst – brak danych do parsowania JSON")
 
-        raw = response.text.strip()
-        #print("raw text" + raw)
-        #print("end of raw text")
-        match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
-        if match:
-            raw = match.group(1).strip()
-        elif raw == "":
-            raise ValueError("AI zwróciło pusty tekst – brak danych do parsowania JSON")
+            data = json.loads(raw)
+            data["aiGenerated"] = True
+            return data
 
-        data = json.loads(raw)
-        data["aiGenerated"] = True
-        return data
-
-    except Exception as e:
-        print("⚠️ AI zwróciło niepoprawny JSON lub błąd:", e)
-        # fallback - do dodania reszta parametrów [!]
-        return {
-            "title": None,
-            "auctionId": None,
-            "auctionCategory": None,
-            "projectLink": None,
-            "bailiffData": {
-                "institutionName": None,
-                "street": None,
-                "buildingNo": None,
-                "flatNo": None,
-                "city": None,
-                "zipCode": None,
-                "country": None,
-                "province": None,
-                "bankName": None,
-                "bankIban": None
-            },
-            "additionalParams": {},
-            "aiGenerated": True
-        }
+        except Exception as e:
+            logger.error("AI error (attempt %s/%s): %s", attempt + 1, max_retries, e)
+            if attempt < max_retries-1:
+                logger.info("Retrying in %s seconds", retry_delay)
+                time.sleep(retry_delay)
+            else:
+                logger.error("Max retries reached, returning fallback")
+    return {
+        "title": None,
+        "auctionId": None,
+        "auctionCategory": None,
+        "projectLink": None,
+        "bailiffData": {
+            "institutionName": None,
+            "street": None,
+            "buildingNo": None,
+            "flatNo": None,
+            "city": None,
+            "zipCode": None,
+            "country": None,
+            "province": None,
+            "bankName": None,
+            "bankIban": None
+        },
+        "additionalParams": {},
+        "aiGenerated": True
+    }
 
 
 # =======================
@@ -297,8 +312,11 @@ def fetch_auction_data(url,conn):
     if not elicytacje_spans:
       for attempt in range(max_retries):
           try:
-              ai_data = ai_response(soup.get_text())
+              ai_data = ai_response(str(soup))
+              df = pd.DataFrame(soup)
+              df.to_csv('dane_testowe.csv')
               api_like = ai_to_api_object(ai_data, url)
+              api_like['object']['projectlink'] = url
               save_auction(api_like,conn, None)
               logger.info("Auction saved (AI)")
               return  # end after the succes
@@ -320,6 +338,7 @@ def fetch_auction_data(url,conn):
             api_address = requests.get(
                 elicytacje_address_api.replace("{id}", item_id), timeout=10
             ).json()
+            api_main['object']['projectlink'] = url
         except Exception as e:
             logger.error("API elicytacje error occures for ID %s: %s", item_id,e)
             continue

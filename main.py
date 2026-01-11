@@ -33,7 +33,7 @@ def main():
     conn, error = db_login()
 
     # Search criteria
-    value1 = 'licytacje1@komornikid.pl'
+    value_mail = 'licytacje1@komornikid.pl'
 
     # Login to email
     my_mail = login(USER,PASSWORD)
@@ -45,13 +45,13 @@ def main():
     status, data = my_mail.uid(
         'search',
         None,
-        'SEEN',
+        'UNSEEN',
         'FROM',
-        value1
+        value_mail
     )
 
     mailids = data[0].split()
-    logger.info("Number of unread emails from %s : %s", value1, len(mailids))
+    logger.info("Number of unread emails from %s : %s", value_mail, len(mailids))
 
 
     # Initialize list to hold fetched messages
