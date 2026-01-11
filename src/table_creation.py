@@ -1,11 +1,13 @@
-from src.db_connect import db_login
+from tkinter.constants import E
+from src.logger import setup_logger
 
-conn, error = db_login()
+#conn, error = db_login()
 
+logger = setup_logger("TABLE_CREATION")
 
 def create_tables_if_not_exists(conn, error):
     if error or conn is None:
-        print("Error: Cannot create tables without a database connection.")
+        logger.error("Cannot create tables without database connection.")
         return
 
     itemCategory = """
@@ -283,9 +285,9 @@ def create_tables_if_not_exists(conn, error):
             with conn.cursor() as cursor:
                 for cmd in commands:
                     cursor.execute(cmd)
-        print("Tables have been created or already exist.")
+        logger.info("Tables have been created or already exists")
     except Exception as e:
-        print("Error creating tables:", e)
+        logger.error("Error while creating tables: %s",e)
 
 
 if __name__ == "__main__":

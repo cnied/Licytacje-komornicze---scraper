@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from google import genai
 import time
 from .db_fulfill import save_auction
+from .logger import setup_logger
 from .db_connect import db_login
 import re
 import os
@@ -14,7 +15,9 @@ from datetime import datetime, timezone
 conn, error = db_login()
 load_dotenv(".env")
 
-url = "https://licytacje.komornik.pl/Notice/Details/664556"
+logger = setup_logger("BS4WITHAI")
+
+url = "https://licytacje.komornik.pl/Notice/Details/662809"
 
 elicytacje_api = "https://elicytacje.komornik.pl/services/item-back/rest/item"
 elicytacje_address_api = "https://elicytacje.komornik.pl/services/item-back/rest/item/{id}/address"
@@ -273,13 +276,16 @@ def ai_to_api_object(ai_data: dict, source_url: str) -> dict:
 # MAIN
 # =======================
 
-def fetch_auction_data(url):
+def fetch_auction_data(url,conn):
     max_retries = 3
     retry_delay = 5
 
-    html = requests.get(url, timeout=10).text
-    soup = BeautifulSoup(html, "html.parser")
+    try:
+        html = requests.get(url, timeout=10).text
+    except requests.RequestException as e:
+        logger.error("Error while downloading the webstie %s: %s", url, e)
 
+    soup = BeautifulSoup(html, "html.parser")
     spans = soup.find_all("span", {"class": "value"})
     elicytacje_spans = [
         span.find("a")["href"]
@@ -289,34 +295,39 @@ def fetch_auction_data(url):
 
     # ========= AI FALLBACK =========
     if not elicytacje_spans:
-        for attempt in range(max_retries):
-            try:
-                ai_data = ai_response(soup.get_text())
-                api_like = ai_to_api_object(ai_data, url)
-                save_auction(api_like, None, conn)
-                print("Auction saved (AI)")
-                return {"source": "AI", "data": api_like}
-            except Exception as e:
-                print(f"⚠️ Błąd AI (próba {attempt + 1}):", e)
-                if attempt < max_retries - 1:
-                    time.sleep(retry_delay)
-                else:
-                    print("⚠️ Maximum retries reached.")
-                    return {"source": None, "data":  None}
+      for attempt in range(max_retries):
+          try:
+              ai_data = ai_response(soup.get_text())
+              api_like = ai_to_api_object(ai_data, url)
+              save_auction(api_like,conn, None)
+              logger.info("Auction saved (AI)")
+              return  # end after the succes
+          except Exception as e:
+              logger.error("Error AI, attempt: %s, error %s", attempt+1, e)
+              if attempt < max_retries - 1:
+                  time.sleep(retry_delay)
+              else:
+                  logger.error("Maximum retries reached")
+      return
 
     # ========= API =========
     for item in elicytacje_spans:
         item_id: list = elicytacje_regex(item)[0]
+        logger.info("Found elicytacje link: %s", item)
 
-        api_main = requests.get(f"{elicytacje_api}/{item_id}", timeout=10).json()
-        api_address = requests.get(
-            elicytacje_address_api.replace("{id}", item_id), timeout=10
-        ).json()
+        try:
+            api_main = requests.get(f"{elicytacje_api}/{item_id}", timeout=10).json()
+            api_address = requests.get(
+                elicytacje_address_api.replace("{id}", item_id), timeout=10
+            ).json()
+        except Exception as e:
+            logger.error("API elicytacje error occures for ID %s: %s", item_id,e)
+            continue
 
-        save_auction(api_main, api_address, conn)
-        print("Auction saved (API)")
+        save_auction(api_main,conn, api_address)
+        logger.info("Auction saved (API)")
         time.sleep(1)
 
 
 if __name__ == "__main__":
-    fetch_auction_data(url)
+    fetch_auction_data(url,conn)

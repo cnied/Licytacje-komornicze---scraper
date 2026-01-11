@@ -1,12 +1,12 @@
-from src.db_connect import db_login
+#from src.db_connect import db_login
 from src.logger import setup_logger
 
 
-conn, error = db_login()
-logger = setup_logger()
+#conn, error = db_login()
+logger = setup_logger("DB_FULFILL")
 
 
-def save_auction(data, address_data=None, conn=conn):
+def save_auction(data,conn, address_data=None):
     if conn is None:
         logger.error("Lack of DB connection, cannot save auction.")
         return
@@ -245,4 +245,5 @@ def save_auction(data, address_data=None, conn=conn):
                     (auction_id, key, value_str, fmt),
                 )
 
-    print("Auction saved", obj.get("id"))
+    logger.info("Auction saved: %s", obj.get("id"))
+    #print("Auction saved", obj.get("id"))

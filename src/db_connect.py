@@ -2,10 +2,10 @@ import os
 import psycopg2
 from dotenv import load_dotenv
 from psycopg2 import OperationalError, Error
-from src.logger import setup_logger
+from .logger import setup_logger
 
 
-logger = setup_logger()
+logger = setup_logger("DB_CONNECT")
 
 load_dotenv(".env")
 

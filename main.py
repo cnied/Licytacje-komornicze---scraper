@@ -2,14 +2,18 @@ import email
 import pandas as pd
 import re
 import sys
+import os
 from src.login import login
 from src.bs4withAI import fetch_auction_data
 from src.table_creation import create_tables_if_not_exists
 from src.db_connect import db_login
 from src.logger import setup_logger
+from dotenv import load_dotenv
 
 
-
+load_dotenv(".env")
+USER = os.getenv("USER")
+PASSWORD = os.getenv("PASSWORD")
 
 MY_SYNTAX = r'https://licytacje\.komornik\.pl/Notice/Details'
 regex = MY_SYNTAX + r'/\d+'
@@ -23,7 +27,7 @@ def body_regex(body):
 
 
 def main():
-    logger = setup_logger()
+    logger = setup_logger("MAIN")
     logger.info("Starting the application")
 
     conn, error = db_login()
@@ -32,7 +36,7 @@ def main():
     value1 = 'licytacje1@komornikid.pl'
 
     # Login to email
-    my_mail = login("credentials.yml")
+    my_mail = login(USER,PASSWORD)
 
     # Select inbox
     my_mail.select("INBOX")
@@ -47,7 +51,8 @@ def main():
     )
 
     mailids = data[0].split()
-    print(f"Number of unread emails from {value1}: {len(mailids)}")
+    logger.info("Number of unread emails from %s : %s", value1, len(mailids))
+
 
     # Initialize list to hold fetched messages
     msgs = []
@@ -108,9 +113,9 @@ def main():
     # Process auction links
     create_tables_if_not_exists(conn, error)
 
-    print("Starting processing of links...")
+    logger.info("Starting processing of links...")
     if 'Links' not in df.columns:
-        logger.error("No links to process. Brak linków do przetworzenia.")
+        logger.error("No links to process.")
         sys.exit()
 
     for index, row in df.iterrows():
@@ -118,7 +123,7 @@ def main():
         links = row['Links']
         for link in links:
             logger.info("Processing link: %s, Processing UID: %s", link, row['UID'])
-            fetch_auction_data(link)
+            fetch_auction_data(link,conn)
 
 
 if __name__ == "__main__":

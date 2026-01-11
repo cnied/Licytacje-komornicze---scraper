@@ -4,13 +4,13 @@ from dotenv import load_dotenv
 from src.logger import setup_logger
 import os
 
-logger = setup_logger()
+logger = setup_logger("LOGIN")
 load_dotenv(".env")
 
 USER = os.getenv("USER")
 PASSWORD = os.getenv("PASSWORD")
 
-def login(credentials_path="credentials.yml"):
+def login(USER,PASSWORD):
     logger.info("Logging in to email")
     imap_url = 'imap.gmail.com'
     my_mail = imaplib.IMAP4_SSL(imap_url)
