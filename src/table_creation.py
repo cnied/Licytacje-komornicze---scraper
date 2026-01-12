@@ -259,6 +259,75 @@ def create_tables_if_not_exists(conn, error):
     END$$;
     """
 
+    # UNIQUE na auctionId w auction_item - zapobiega duplikatom aukcji
+    auction_item_auctionid_unique = """
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'auction_item_auctionid_unique_key'
+        ) THEN
+            -- Najpierw usuń duplikaty (zostaw najnowszy rekord)
+            DELETE FROM auction_item a
+            USING auction_item b
+            WHERE a.id < b.id
+              AND a.auctionId = b.auctionId
+              AND a.auctionId IS NOT NULL;
+
+            -- Dodaj UNIQUE constraint
+            ALTER TABLE auction_item
+                ADD CONSTRAINT auction_item_auctionid_unique_key
+                UNIQUE (auctionId);
+        END IF;
+    END$$;
+    """
+
+    # Naprawiony UNIQUE na bailiff_data z obsługą NULL (COALESCE)
+    bailiff_unique_index = """
+    DO $$
+    BEGIN
+        -- Usuń stary constraint jeśli istnieje
+        IF EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'bailiff_data_unique_key'
+        ) THEN
+            ALTER TABLE bailiff_data DROP CONSTRAINT bailiff_data_unique_key;
+        END IF;
+
+        -- Usuń stary indeks jeśli istnieje
+        DROP INDEX IF EXISTS bailiff_data_unique_idx;
+
+        -- Usuń duplikaty przed utworzeniem indeksu
+        DELETE FROM bailiff_data a
+        USING bailiff_data b
+        WHERE a.id < b.id
+          AND COALESCE(a.institutionName, '') = COALESCE(b.institutionName, '')
+          AND COALESCE(a.street, '') = COALESCE(b.street, '')
+          AND COALESCE(a.buildingNo, '') = COALESCE(b.buildingNo, '')
+          AND COALESCE(a.flatNo, '') = COALESCE(b.flatNo, '')
+          AND COALESCE(a.city, '') = COALESCE(b.city, '')
+          AND COALESCE(a.zipCode, '') = COALESCE(b.zipCode, '')
+          AND COALESCE(a.country, '') = COALESCE(b.country, '')
+          AND COALESCE(a.province, '') = COALESCE(b.province, '')
+          AND COALESCE(a.bankName, '') = COALESCE(b.bankName, '')
+          AND COALESCE(a.bankIban, '') = COALESCE(b.bankIban, '');
+
+        -- Utwórz unikalny indeks z COALESCE
+        CREATE UNIQUE INDEX bailiff_data_unique_idx ON bailiff_data (
+            COALESCE(institutionName, ''),
+            COALESCE(street, ''),
+            COALESCE(buildingNo, ''),
+            COALESCE(flatNo, ''),
+            COALESCE(city, ''),
+            COALESCE(zipCode, ''),
+            COALESCE(country, ''),
+            COALESCE(province, ''),
+            COALESCE(bankName, ''),
+            COALESCE(bankIban, '')
+        );
+    END$$;
+    """
+
     commands = [
         itemCategory,
         bailiffData,
@@ -272,12 +341,14 @@ def create_tables_if_not_exists(conn, error):
         fk_param_auction,
         fk_address_auction,
         fk_address_unique,
-        bailiff_unique,
         # Cleanup duplikatów i UNIQUE constraints
         cleanup_attachment_duplicates,
         cleanup_param_duplicates,
         attachment_unique,
         param_unique,
+        # Nowe constraints zapobiegające duplikatom
+        auction_item_auctionid_unique,
+        bailiff_unique_index,  # zastępuje stary bailiff_unique z obsługą NULL
     ]
 
     try:

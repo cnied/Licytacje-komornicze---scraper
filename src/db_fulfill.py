@@ -62,8 +62,28 @@ def save_auction(data,conn, address_data=None):
                         bankName, bankIban
                     )
                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    ON CONFLICT ON CONSTRAINT bailiff_data_unique_key DO UPDATE
-                    SET institutionName = EXCLUDED.institutionName
+                    ON CONFLICT (
+                        COALESCE(institutionName, ''),
+                        COALESCE(street, ''),
+                        COALESCE(buildingNo, ''),
+                        COALESCE(flatNo, ''),
+                        COALESCE(city, ''),
+                        COALESCE(zipCode, ''),
+                        COALESCE(country, ''),
+                        COALESCE(province, ''),
+                        COALESCE(bankName, ''),
+                        COALESCE(bankIban, '')
+                    ) DO UPDATE
+                    SET institutionName = EXCLUDED.institutionName,
+                        street          = EXCLUDED.street,
+                        buildingNo      = EXCLUDED.buildingNo,
+                        flatNo          = EXCLUDED.flatNo,
+                        city            = EXCLUDED.city,
+                        zipCode         = EXCLUDED.zipCode,
+                        country         = EXCLUDED.country,
+                        province        = EXCLUDED.province,
+                        bankName        = EXCLUDED.bankName,
+                        bankIban        = EXCLUDED.bankIban
                     RETURNING id
                     """,
                     (
@@ -98,8 +118,8 @@ def save_auction(data,conn, address_data=None):
                     %(auctionCategory)s, %(projectLink)s,
                     %(itemCategoryId)s, %(bailiffDataId)s, %(aiGenerated)s
                 )
-                ON CONFLICT (id) DO UPDATE
-                SET auctionId       = EXCLUDED.auctionId,
+                ON CONFLICT (auctionId) DO UPDATE
+                SET id              = EXCLUDED.id,
                     name            = EXCLUDED.name,
                     city            = EXCLUDED.city,
                     institutionName = EXCLUDED.institutionName,

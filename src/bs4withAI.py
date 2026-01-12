@@ -162,6 +162,23 @@ Zwróć JEDEN OBIEKT JSON zgodny ze schematem:
     "ECONOMICPURPOSE": {{ "value": "string" | null, "format": "SINGLE" }}  # Przeznaczenie nieruchomości (np. "dom mieszkalny", "nieruchomość rolna")
   }},
 
+  "addressData": {{
+    "auctionId": null,                     # Zawsze ustaw jako null - zostanie nadane automatycznie
+    "institutionName": "string" | null,    # Nazwa instytucji związanej z adresem nieruchomości (jeśli dotyczy)
+    "foreignAddress": false,               # Czy adres jest zagraniczny - dla polskich adresów zawsze false
+    "streetPrefix": "string" | null,       # Prefiks ulicy (np. "ul.", "al.", "os.") - ODDZIELNY od nazwy ulicy
+    "street": "string" | null,             # Nazwa ulicy licytowanej nieruchomości (BEZ prefiksu "ul.")
+    "buildingNo": "string" | null,         # Numer budynku (lub "0"/"-" jeśli brak)
+    "flatNo": "string" | null,             # Numer lokalu/mieszkania (jeśli dotyczy)
+    "city": "string" | null,               # Miasto/miejscowość licytowanej nieruchomości
+    "zipCode": "string" | null,            # Kod pocztowy (format XX-XXX)
+    "postOffice": "string" | null,         # Urząd pocztowy (jeśli inny niż miasto)
+    "country": "Polska",                   # Kraj - domyślnie "Polska"
+    "province": "string" | null,           # Województwo (np. "mazowieckie", "małopolskie")
+    "district": "string" | null,           # Powiat (jeśli podano)
+    "community": "string" | null           # Gmina (jeśli podano)
+  }},
+
   "aiGenerated": true  # Pole do oznaczenia, że JSON został wygenerowany przez AI
 }}
 
@@ -213,6 +230,22 @@ TEKST OGŁOSZENIA:
             "bankIban": None
         },
         "additionalParams": {},
+        "addressData": {
+            "auctionId": None,
+            "institutionName": None,
+            "foreignAddress": False,
+            "streetPrefix": None,
+            "street": None,
+            "buildingNo": None,
+            "flatNo": None,
+            "city": None,
+            "zipCode": None,
+            "postOffice": None,
+            "country": "Polska",
+            "province": None,
+            "district": None,
+            "community": None
+        },
         "aiGenerated": True
     }
 
@@ -221,13 +254,15 @@ TEKST OGŁOSZENIA:
 # AI → API ADAPTER
 # =======================
 
-def ai_to_api_object(ai_data: dict, source_url: str) -> dict:
+def ai_to_api_object(ai_data: dict, source_url: str) -> tuple:
     """
     Konwertuje dane zwrócone przez AI do struktury zgodnej z API.
+    Zwraca krotkę (api_object, address_data).
     """
     auction_id = stable_id_from_url(source_url)
     bailiff = ai_data.get("bailiffData") or {}
     additional = ai_data.get("additionalParams") or {}
+    address = ai_data.get("addressData") or {}
     
     # Extract auctionCategory from list if it's a list 
     auction_category = ai_data.get("auctionCategory")
@@ -237,15 +272,15 @@ def ai_to_api_object(ai_data: dict, source_url: str) -> dict:
     # Convert category string to category object with id
     category_obj = get_category_object(auction_category)
     
-    # Extract title from list if it's a list 
+    # Extract title from list if it's a list
     title = ai_data.get("title")
     if isinstance(title, list) and len(title) > 0:
         title = title[0]
 
-    return {
+    api_object = {
         "object": {
             "id": auction_id,
-            "auctionId": ai_data.get("auctionId"),
+            "auctionId": auction_id,
             "name": title,
             "city": ai_data.get("city"),
             "institutionName": bailiff.get("institutionName"),
@@ -280,11 +315,31 @@ def ai_to_api_object(ai_data: dict, source_url: str) -> dict:
             },
 
 
-            "additionalParams": additional, 
+            "additionalParams": additional,
 
             "aiGenerated": True
         }
     }
+
+    # Przygotuj dane adresowe nieruchomości
+    address_data = {
+        "auctionId": auction_id,  # zostanie nadane automatycznie
+        "institutionName": address.get("institutionName"),
+        "foreignAddress": address.get("foreignAddress", False),
+        "streetPrefix": address.get("streetPrefix"),
+        "street": address.get("street"),
+        "buildingNo": address.get("buildingNo"),
+        "flatNo": address.get("flatNo"),
+        "city": address.get("city"),
+        "zipCode": address.get("zipCode"),
+        "postOffice": address.get("postOffice"),
+        "country": address.get("country", "Polska"),
+        "province": address.get("province"),
+        "district": address.get("district"),
+        "community": address.get("community")
+    }
+
+    return api_object, address_data
 
 
 # =======================
@@ -315,9 +370,9 @@ def fetch_auction_data(url,conn):
               ai_data = ai_response(str(soup))
               df = pd.DataFrame(soup)
               df.to_csv('dane_testowe.csv')
-              api_like = ai_to_api_object(ai_data, url)
+              api_like, address_data = ai_to_api_object(ai_data, url)
               api_like['object']['projectlink'] = url
-              save_auction(api_like,conn, None)
+              save_auction(api_like, conn, address_data)
               logger.info("Auction saved (AI)")
               return  # end after the succes
           except Exception as e:
@@ -339,6 +394,7 @@ def fetch_auction_data(url,conn):
                 elicytacje_address_api.replace("{id}", item_id), timeout=10
             ).json()
             api_main['object']['projectlink'] = url
+            api_main['object']['aiGenerated'] = False
         except Exception as e:
             logger.error("API elicytacje error occures for ID %s: %s", item_id,e)
             continue
