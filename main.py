@@ -14,7 +14,6 @@ from dotenv import load_dotenv
 load_dotenv(".env")
 USER = os.getenv("USER")
 PASSWORD = os.getenv("PASSWORD")
-
 MY_SYNTAX = r'https://licytacje\.komornik\.pl/Notice/Details'
 regex = MY_SYNTAX + r'/\d+'
 
@@ -45,13 +44,14 @@ def main():
     status, data = my_mail.uid(
         'search',
         None,
-        'UNSEEN',
+        'SEEN',
         'FROM',
         value_mail
     )
 
     mailids = data[0].split()
     logger.info("Number of unread emails from %s : %s", value_mail, len(mailids))
+    #print(mailids)
 
 
     # Initialize list to hold fetched messages
@@ -60,6 +60,7 @@ def main():
     for i in mailids:
         uid = i.decode('ascii')
         typ, data = my_mail.uid('fetch', uid, '(BODY.PEEK[])')
+        #print(data)
         if data is None or not data or len(data) == 0:
             logger.error("No data for UID: %s", uid)
             continue

@@ -1,4 +1,3 @@
-from socket import SOL_UDP
 from urllib.request import url2pathname
 import requests
 import json
@@ -9,14 +8,16 @@ import time
 import pandas as pd
 from .db_fulfill import save_auction
 from .logger import setup_logger
-from .db_connect import db_login
 import re
 import os
 import hashlib
 from datetime import datetime, timezone
+#from .db_connect import db_login
 
-conn, error = db_login()
+
+#conn, error = db_login()
 load_dotenv(".env")
+#conn, error = db_login()
 
 logger = setup_logger("BS4WITHAI")
 
@@ -54,21 +55,34 @@ def stable_id_from_url(url: str) -> int:
     return h % 9223372036854775807
 
 
-def get_category_object(category_name):
+def list_category_objects(conn):
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM public.item_category")
+    logger.info("Odpytano bazę o listę kategorii")
+    records = cur.fetchall()
+    categories = [{'value': item[2], 'category': item[3], 'itemcategoryid': item[0]} for item in records]
+    #print("list of dicts" +  str(categories))
+    #print(categories)
+    return categories
+
+
+def get_category_object(category_name,category_value,categories):
     """
     Mapuje nazwę kategorii na obiekt z id zgodny z bazą danych.
     """
-    categories = {
-        "INDUSTRIAL_MACHINES": {"id": 105, "name": "maszyny przemysłowe"},
-        "LAND": {"id": 122, "name": "grunty"},
-        "HOUSES": {"id": 123, "name": "domy"},
-        "APARTMENTS": {"id": 124, "name": "mieszkania"},
-    }
-    
+
     if not category_name:
         return None
     
-    return categories.get(category_name)
+    for item in categories:
+        if item.get("category","").lower() == category_name.lower() and item.get("value","").lower() == category_value.lower():
+            print(item.get("itemcategoryid"))
+            return item.get("itemcategoryid")
+    return None
+
+
+
+
 
 
 # =======================
@@ -77,7 +91,7 @@ def get_category_object(category_name):
 
 client = genai.Client()
 
-def ai_response(text: str, max_retries = 3, retry_delay = 30) -> dict:
+def ai_response(text: str, categories: str, max_retries = 3, retry_delay = 30) -> dict:
     prompt = f"""
 Jesteś ekspertem od polskich licytacji komorniczych.
 
@@ -114,11 +128,12 @@ Przykład: jeśli tabela ma pozycje 36000 zł, 49000 zł, 53900 zł, 27400 zł t
 - Przykład: 2369.80 (poprawnie), NIE 2369,80 (błąd)
 - Nie używaj spacji ani przecinków jako separatorów tysięcy
 
-**WAŻNE**: auctionCategory może być TYLKO jedną z tych wartości:
-- "APARTMENTS" (mieszkania)
-- "HOUSES" (domy)
-- "LAND" (grunty)
-- "INDUSTRIAL_MACHINES" (maszyny przemysłowe)
+**WAŻNE**: 
+Podsyłam ci słownik z mojej bazy danych, na jego bazie przypisuj odpowiednio auctionCategory(w słowniku 'category') i auctionValue(w słowniku 'value')
+auctionCategory może być TYLKO jedną z tych wartości, dla których posiadamy klucz 'category'.
+auctionValue może być TYLKO jedną z tych wartości, dla których posiadamy klucz 'value'.
+{categories}
+
 Jeśli nie pasuje do żadnej z tych kategorii, ustaw null.
 
 Zwróć JEDEN OBIEKT JSON zgodny ze schematem:
@@ -127,6 +142,7 @@ Zwróć JEDEN OBIEKT JSON zgodny ze schematem:
   "title": "string" | null,  # Tytuł ogłoszenia / nazwa licytowanej nieruchomości/ruchomości
   "auctionId": "bigint" | null,  # Unikalny identyfikator licytacji
   "auctionCategory": "string" | null,  # Kategoria: "APARTMENTS", "HOUSES", "LAND", "INDUSTRIAL_MACHINES" lub null
+  "auctionValue": "string" | null, # Wartość dla kategorii: "grunty", "lokale użytkowe", "mieszkania", "meble"
   "projectLink": "string" | null,  # Link do ogłoszenia / strony aukcji
   "estimate": number | null,  # Szacunkowa wartość nieruchomości/ruchomości w PLN, jeśli podano
   "openingvalue": number | null,  # Wartość wywoławcza w PLN, jeśli podano
@@ -254,7 +270,7 @@ TEKST OGŁOSZENIA:
 # AI → API ADAPTER
 # =======================
 
-def ai_to_api_object(ai_data: dict, source_url: str) -> tuple:
+def ai_to_api_object(ai_data: dict, source_url: str, conn) -> tuple:
     """
     Konwertuje dane zwrócone przez AI do struktury zgodnej z API.
     Zwraca krotkę (api_object, address_data).
@@ -266,11 +282,13 @@ def ai_to_api_object(ai_data: dict, source_url: str) -> tuple:
     
     # Extract auctionCategory from list if it's a list 
     auction_category = ai_data.get("auctionCategory")
+    category_value = ai_data.get("itemcategoryid")
     if isinstance(auction_category, list) and len(auction_category) > 0:
         auction_category = auction_category[0]
     
     # Convert category string to category object with id
-    category_obj = get_category_object(auction_category)
+    category_obj = get_category_object(auction_category,category_value,list_category_objects(conn))
+
     
     # Extract title from list if it's a list
     title = ai_data.get("title")
@@ -285,7 +303,6 @@ def ai_to_api_object(ai_data: dict, source_url: str) -> tuple:
             "city": ai_data.get("city"),
             "institutionName": bailiff.get("institutionName"),
             "dateCreated": datetime.now(timezone.utc).isoformat(),
-            "auctionCategory": auction_category,
             "projectLink": ai_data.get("projectLink") or source_url,
             "estimate": ai_data.get("estimate"),
             "openingValue": ai_data.get("openingvalue"),
@@ -294,7 +311,8 @@ def ai_to_api_object(ai_data: dict, source_url: str) -> tuple:
             "startAuction": ai_data.get("startauction"),
             "endAuction": ai_data.get("endauction"),
             "marginDueDate": ai_data.get("marginduedate"),
-            "itemCategory": category_obj,
+            "auctionCategory": category_obj.get("auctionCategory"),
+            "itemcategoryid": category_obj.get("itemcategoryid"),
             "attachments": [],
 
             "bailiffData": {
@@ -356,6 +374,7 @@ def fetch_auction_data(url,conn):
         logger.error("Error while downloading the webstie %s: %s", url, e)
 
     soup = BeautifulSoup(html, "html.parser")
+    categories = list_category_objects(conn)
     spans = soup.find_all("span", {"class": "value"})
     elicytacje_spans = [
         span.find("a")["href"]
@@ -364,13 +383,13 @@ def fetch_auction_data(url,conn):
     ]
 
     # ========= AI FALLBACK =========
-    if not elicytacje_spans:
+    if not elicytacje_spans:  
       for attempt in range(max_retries):
           try:
-              ai_data = ai_response(str(soup))
+              ai_data = ai_response(str(soup),categories)
               df = pd.DataFrame(soup)
               df.to_csv('dane_testowe.csv')
-              api_like, address_data = ai_to_api_object(ai_data, url)
+              api_like, address_data = ai_to_api_object(ai_data, url, conn)
               api_like['object']['projectlink'] = url
               save_auction(api_like, conn, address_data)
               logger.info("Auction saved (AI)")
@@ -405,4 +424,6 @@ def fetch_auction_data(url,conn):
 
 
 if __name__ == "__main__":
-    fetch_auction_data(url,conn)
+    print("test")
+    #fetch_auction_data(url,conn)
+    #get_category_object("REAL_ESTATE","grunty",list_category_objects(conn))
