@@ -1,4 +1,3 @@
-from tkinter.constants import E
 from src.logger import setup_logger
 
 #conn, error = db_login()

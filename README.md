@@ -1,9 +1,9 @@
 # Inteligentny Scraper Licytacji Komorniczych
 
 ![Status](https://img.shields.io/badge/status-in%20progress-orange)
-![Progress](https://img.shields.io/badge/progress-60%25-green)
+![Progress](https://img.shields.io/badge/progress-75%25-green)
 
-**Projekt w trakcie rozwoju (60%)**
+**Projekt w trakcie rozwoju (75%)**
 
 Automatyczne narzędzie do pobierania i przechowywania ogłoszeń o licytacjach komorniczych.
 Projekt wykorzystuje **AI (Google Gemini)**, **BeautifulSoup** i bazę danych **PostgreSQL**.
@@ -25,6 +25,10 @@ Projekt wykorzystuje **AI (Google Gemini)**, **BeautifulSoup** i bazę danych **
 - automatyczne tworzenie tabel
 - upsert (INSERT ON CONFLICT) - bez duplikatów
 - przechowywanie: aukcje, adresy, załączniki, parametry dodatkowe, dane komorników
+
+### Geokodowanie adresów
+- automatyczne pobieranie współrzędnych geograficznych (lat/lon)
+- integracja z OpenCage Geocoding API
 
 ### Logowanie
 - logi do konsoli i plików (folder `logs/`)
@@ -50,6 +54,9 @@ PASSWORD=twoje-haslo-aplikacji-google
 
 # Gemini AI
 GEMINI_API_KEY=twoj_klucz_api_gemini
+
+# Geokodowanie (OpenCage)
+GEOCODE_API=twoj_klucz_api_opencage
 
 # PostgreSQL
 DB_NAME=nazwa_bazy
@@ -84,6 +91,9 @@ python -c "from src.db_connect import db_login; print(db_login())"
 
 # Ręczne tworzenie tabel
 python -c "from src.table_creation import create_tables_if_not_exists; from src.db_connect import db_login; conn, err = db_login(); create_tables_if_not_exists(conn, err)"
+
+# Uruchomienie testów
+pytest tests/
 ```
 
 ---
@@ -99,6 +109,16 @@ src/
   table_creation.py         # tworzenie tabel
   login.py                  # IMAP Gmail
   logger.py                 # konfiguracja logowania
+  geocoding.py              # geokodowanie adresów (OpenCage API)
+tests/                      # testy jednostkowe (pytest)
+  test_bs4withAi.py
+  test_db_connect.py
+  test_db_fulfill.py
+  test_login.py
+  test_logger.py
+  test_main.py
+  test_table_creation.py
+  test_conf.py
 logs/                       # pliki logów (YYYY-MM-DD.log)
 .env                        # zmienne środowiskowe
 ```
@@ -130,11 +150,12 @@ Dodaj go do `.gitignore`.
 - [x] API elicytacje.komornik.pl
 - [x] Baza danych PostgreSQL
 - [x] System logowania
-- [ ] Geokodowanie adresów
+- [x] Geokodowanie adresów
+- [x] Testy jednostkowe
 - [ ] Interaktywna mapa
 - [ ] Dashboard / UI
 
-**Aktualny postęp: ~60%**
+**Aktualny postęp: ~75%**
 
 ---
 
