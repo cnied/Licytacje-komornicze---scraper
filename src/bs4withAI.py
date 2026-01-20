@@ -12,6 +12,7 @@ import re
 import os
 import hashlib
 from datetime import datetime, timezone
+from .geocoding import geocoding_function
 #from .db_connect import db_login
 
 
@@ -58,9 +59,9 @@ def stable_id_from_url(url: str) -> int:
 def list_category_objects(conn):
     cur = conn.cursor()
     cur.execute("SELECT * FROM public.item_category")
-    logger.info("Odpytano bazę o listę kategorii")
     records = cur.fetchall()
     categories = [{'value': item[2], 'category': item[3], 'itemcategoryid': item[0]} for item in records]
+    logger.info("Odpytano bazę o listę kategorii")
     #print("list of dicts" +  str(categories))
     #print(categories)
     return categories
@@ -71,12 +72,13 @@ def get_category_object(category_name,category_value,categories):
     Mapuje nazwę kategorii na obiekt z id zgodny z bazą danych.
     """
 
-    if not category_name:
-        return None
+    if not category_name or not category_value:
+      return None
     
     for item in categories:
         if item.get("category","").lower() == category_name.lower() and item.get("value","").lower() == category_value.lower():
-            print(item.get("itemcategoryid"))
+            logger.info("CategoryItemID=%s", item.get("itemcategoryid"))
+            #print(item.get("itemcategoryid"))
             return item.get("itemcategoryid")
     return None
 
@@ -282,7 +284,7 @@ def ai_to_api_object(ai_data: dict, source_url: str, conn) -> tuple:
     
     # Extract auctionCategory from list if it's a list 
     auction_category = ai_data.get("auctionCategory")
-    category_value = ai_data.get("itemcategoryid")
+    category_value = ai_data.get("auctionValue")
     if isinstance(auction_category, list) and len(auction_category) > 0:
         auction_category = auction_category[0]
     
@@ -311,8 +313,8 @@ def ai_to_api_object(ai_data: dict, source_url: str, conn) -> tuple:
             "startAuction": ai_data.get("startauction"),
             "endAuction": ai_data.get("endauction"),
             "marginDueDate": ai_data.get("marginduedate"),
-            "auctionCategory": category_obj.get("auctionCategory"),
-            "itemcategoryid": category_obj.get("itemcategoryid"),
+            "auctionCategory": auction_category, 
+            "itemcategoryid": category_obj,       
             "attachments": [],
 
             "bailiffData": {
@@ -391,11 +393,27 @@ def fetch_auction_data(url,conn):
               df.to_csv('dane_testowe.csv')
               api_like, address_data = ai_to_api_object(ai_data, url, conn)
               api_like['object']['projectlink'] = url
+              address = " ".join(filter(None, [
+                address_data.get("streetPrefix"),
+                address_data.get("street"),
+                address_data.get("buildingNo"),
+                address_data.get("flatNo"),
+                address_data.get("zipCode"),
+                address_data.get("postOffice"),
+                address_data.get("city"),
+                address_data.get("district"),
+                address_data.get("province"),
+                address_data.get("country"),
+            ]))
+              lon, lat = geocoding_function(address)
+              address_data["lon"] = lon
+              address_data["lat"] = lat
+
               save_auction(api_like, conn, address_data)
               logger.info("Auction saved (AI)")
               return  # end after the succes
           except Exception as e:
-              logger.error("Error AI, attempt: %s, error %s", attempt+1, e)
+              logger.error("Error, attempt: %s, error %s", attempt+1, e)
               if attempt < max_retries - 1:
                   time.sleep(retry_delay)
               else:
@@ -412,6 +430,22 @@ def fetch_auction_data(url,conn):
             api_address = requests.get(
                 elicytacje_address_api.replace("{id}", item_id), timeout=10
             ).json()
+            address = " ".join(filter(None, [
+                api_address.get("streetPrefix"),
+                api_address.get("street"),
+                api_address.get("buildingNo"),
+                api_address.get("flatNo"),
+                api_address.get("zipCode"),
+                api_address.get("postOffice"),
+                api_address.get("city"),
+                api_address.get("district"),
+                api_address.get("province"),
+                api_address.get("country"),
+            ]))
+
+            lon, lat = geocoding_function(address)
+            api_address["lon"] = lon
+            api_address["lat"] = lat
             api_main['object']['projectlink'] = url
             api_main['object']['aiGenerated'] = False
         except Exception as e:

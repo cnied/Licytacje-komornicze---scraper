@@ -100,6 +100,8 @@ def create_tables_if_not_exists(conn, error):
         country         TEXT,
         province        TEXT,
         district        TEXT,
+        lon             NUMERIC,
+        lat             NUMERIC,
         community       TEXT
     );
     """

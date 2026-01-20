@@ -171,9 +171,9 @@ def save_auction(data,conn, address_data=None):
                         institutionName, foreignAddress, streetPrefix,
                         street, buildingNo, flatNo, city,
                         zipCode, postOffice, country, province,
-                        district, community
+                        district, community, lon, lat
                     )
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     ON CONFLICT ON CONSTRAINT auction_item_address_auctionid_key
                     DO UPDATE SET
                         institutionName = EXCLUDED.institutionName,
@@ -188,7 +188,9 @@ def save_auction(data,conn, address_data=None):
                         country         = EXCLUDED.country,
                         province        = EXCLUDED.province,
                         district        = EXCLUDED.district,
-                        community       = EXCLUDED.community
+                        community       = EXCLUDED.community,
+                        lon             = EXCLUDED.lon,
+                        lat             = EXCLUDED.lat
                     """,
                     (
                         auction_id,
@@ -205,6 +207,8 @@ def save_auction(data,conn, address_data=None):
                         addr.get("province"),
                         addr.get("district"),
                         addr.get("community"),
+                        addr.get("lon"),
+                        addr.get("lat"),
                     ),
                 )
 
