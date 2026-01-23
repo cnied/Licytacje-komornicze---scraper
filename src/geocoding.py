@@ -26,7 +26,7 @@ def geocoding_function(address):
         logger.info("Geocoding success | lon=%s lat=%s", lon, lat)
         return lon,lat
     except Exception as e:
-        logger.error("Error occured while geocoding: ",e)
+        logger.error("Error occured while geocoding: %s", e)
         return None
     
 
