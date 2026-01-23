@@ -4,7 +4,7 @@ import re
 import sys
 import os
 from src.login import login
-from src.bs4withAI import fetch_auction_data
+from src.scraper import fetch_auction_data
 from src.table_creation import create_tables_if_not_exists
 from src.db_connect import db_login
 from src.logger import setup_logger

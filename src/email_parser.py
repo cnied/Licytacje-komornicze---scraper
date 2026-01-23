@@ -6,6 +6,11 @@ logger = setup_logger("EMAIL_PARSE")
 MY_SYNTAX = r'https://licytacje\.komornik\.pl/Notice/Details'
 regex = MY_SYNTAX + r'/\d+'
 
+def elicytacje_regex(body):
+    """Wyciąga ID z linków elicytacje.komornik.pl/items/"""
+    elicytacje_pattern = r'/items/(\d+)'
+    return list(dict.fromkeys(re.findall(elicytacje_pattern, body or "")))
+
 def body_regex(body):
     if not body:
         return []
@@ -52,6 +57,7 @@ def fetch_email(my_mail,mail_from):
 
 
 def parse_email_body(msg):
+    email_body = ""
     for part in msg.walk():
             content_type = part.get_content_type()
             if content_type in ["text/plain", "text/html"]:

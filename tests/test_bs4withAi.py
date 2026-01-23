@@ -1,4 +1,6 @@
-from src.bs4withAI import elicytacje_regex, stable_id_from_url, get_category_object
+from src.email_parser import elicytacje_regex
+from src.data_transformer import stable_id_from_url
+from src.category_service import get_category_object
 import re
 
 

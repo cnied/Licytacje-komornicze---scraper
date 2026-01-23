@@ -491,9 +491,9 @@
     fieldset { margin-top: 20px; }
     .editor-field { width: 400px; }
 </style>
-<form action=""/Notice/Details/665069"" method=""post""><input name=""__RequestVerificationToken"" type=""hidden"" value=""Ei_TxXJmXlSsWgnve7cnoo4HAFjZJgMZNZF-5KXIEfFiMYEzKtbmHPR3hBm78OYwUd5qrmf1mdycT9mfyM2A5yluUhCR8KmtPDJuzQnHvos1""/><input data-val=""true"" data-val-number=""The field BidId must be a number."" data-val-required=""The BidId field is required."" id=""BidId"" name=""BidId"" type=""hidden"" value=""665069""/><input data-val=""true"" data-val-required=""The Token field is required."" id=""Token"" name=""Token"" type=""hidden"" value=""bd1714dd-7824-44ed-ab08-c0af39e9d1a2""/> <fieldset>
+<form action=""/Notice/Details/665069"" method=""post""><input name=""__RequestVerificationToken"" type=""hidden"" value=""xZMZgDyR72jKyjnxLXJoKB19AfSMFyHFSU5_lVmRKZ5DaGVoh-Gmgh_3BksorU9DWcu3BjX08QLuKI-OwtSfvaya5zs54c6N96ww_JWLBEU1""/><input data-val=""true"" data-val-number=""The field BidId must be a number."" data-val-required=""The BidId field is required."" id=""BidId"" name=""BidId"" type=""hidden"" value=""665069""/><input data-val=""true"" data-val-required=""The Token field is required."" id=""Token"" name=""Token"" type=""hidden"" value=""d1aeb5c3-7765-4895-bdf8-cbc412df5bb3""/> <fieldset>
 <h6>Wiadomość zostanie wysłana do komornika publikującego obwieszczenie</h6>
-<input id=""Token"" name=""Token"" type=""hidden"" value=""bd1714dd-7824-44ed-ab08-c0af39e9d1a2""/>
+<input id=""Token"" name=""Token"" type=""hidden"" value=""d1aeb5c3-7765-4895-bdf8-cbc412df5bb3""/>
 <div class=""editor-label w150"">
 <label for=""Subject"">Temat</label>
 </div>
@@ -518,7 +518,7 @@
 </br></div>
 <div class=""editor-field"">
             Przepisz kod z obrazka: <br>
-<img alt=""Are you a human being?"" src=""/MvcCaptcha/GetPicture/RlhzMUtCcG1IeWNvSWhBcEdBd2lFaFFoZTBkaUFuQTNGalEvUGdJSExCd2NKVWc5YVMwNkFnQkZESGNxQ1FnYWVUUmhQUzB4QUM4Vk54RTZEeDRBQXlVc0xTOTVHMElMV1RNN0tBaEpKM2xKS2hzbkJqOWVBQT09""/><input id=""MvcCaptchaHiddenInputId"" name=""MvcCaptchaHiddenInputId"" type=""hidden"" value=""RlhzMUtCcG1IeWNvSWhBcEdBd2lFaFFoZTBkaUFuQTNGalEvUGdJSExCd2NKVWc5YVMwNkFnQkZESGNxQ1FnYWVUUmhQUzB4QUM4Vk54RTZEeDRBQXlVc0xTOTVHMElMV1RNN0tBaEpKM2xKS2hzbkJqOWVBQT09""/><br>
+<img alt=""Are you a human being?"" src=""/MvcCaptcha/GetPicture/ZXlFa0dIY25VeDQzSm5kcEJ3dGxUQ3M0V2prNEVnWU5laTh1QW5Zbk1XRVlRVXdRREFvV0kxY3ZEVWtrZFRnNWVHcHNJMVFaY21BR1BRUVdERFJhQ1FzN094RUxNQjhjQVROb2UzOG9OUzlXT3lnOEF5OWVBQT09""/><input id=""MvcCaptchaHiddenInputId"" name=""MvcCaptchaHiddenInputId"" type=""hidden"" value=""ZXlFa0dIY25VeDQzSm5kcEJ3dGxUQ3M0V2prNEVnWU5laTh1QW5Zbk1XRVlRVXdRREFvV0kxY3ZEVWtrZFRnNWVHcHNJMVFaY21BR1BRUVdERFJhQ1FzN094RUxNQjhjQVROb2UzOG9OUzlXT3lnOEF5OWVBQT09""/><br>
 <input autocomplete=""off"" data-val=""true"" data-val-length=""Nieodpowiednia długość (maks. 100)"" data-val-length-max=""100"" data-val-required=""To pole jest wymagane."" id=""Captcha"" name=""Captcha"" style=""width: 150px;"" type=""text"" value=""""/><br>
 <span class=""field-validation-valid"" data-valmsg-for=""Captcha"" data-valmsg-replace=""true""></span>
 </br></br></br></div>
