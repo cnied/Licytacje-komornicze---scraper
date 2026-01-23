@@ -8,21 +8,13 @@ from src.bs4withAI import fetch_auction_data
 from src.table_creation import create_tables_if_not_exists
 from src.db_connect import db_login
 from src.logger import setup_logger
+from src.email_parser import fetch_email,parse_email_body,body_regex
 from dotenv import load_dotenv
 
 
 load_dotenv(".env")
 USER = os.getenv("USER")
 PASSWORD = os.getenv("PASSWORD")
-MY_SYNTAX = r'https://licytacje\.komornik\.pl/Notice/Details'
-regex = MY_SYNTAX + r'/\d+'
-
-def body_regex(body):
-    if not body:
-        return []
-    all_links = re.findall(regex, body)
-    unique_links = list(dict.fromkeys(all_links))
-    return unique_links
 
 
 def main():
@@ -32,7 +24,7 @@ def main():
     conn, error = db_login()
 
     # Search criteria
-    value_mail = 'licytacje1@komornikid.pl'
+    mail_from = 'licytacje1@komornikid.pl'
 
     # Login to email
     my_mail = login(USER,PASSWORD)
@@ -41,35 +33,9 @@ def main():
     my_mail.select("INBOX")
 
     # Search for SEEN emails FROM specific sender (using UID)
-    status, data = my_mail.uid(
-        'search',
-        None,
-        'SEEN',
-        'FROM',
-        value_mail
-    )
-
-    mailids = data[0].split()
-    logger.info("Number of unread emails from %s : %s", value_mail, len(mailids))
-    #print(mailids)
-
-
     # Initialize list to hold fetched messages
-    msgs = []
-
-    for i in mailids:
-        uid = i.decode('ascii')
-        typ, data = my_mail.uid('fetch', uid, '(BODY.PEEK[])')
-        #print(data)
-        if data is None or not data or len(data) == 0:
-            logger.error("No data for UID: %s", uid)
-            continue
-        if data[0] is None:
-            logger.error("No email content for UID: %s", uid)
-            continue
-        raw_email = data[0][1] + ("UID: " + uid + "\n").encode('utf-8')
-        msgs.append((raw_email, uid))
-        logger.info("UID %s, Length: %s", uid, len(raw_email))
+    msgs = fetch_email(my_mail,mail_from)
+   
     rows = []
 
     for raw_email, uid in msgs:
@@ -77,15 +43,7 @@ def main():
         email_from = msg['from']
         email_subject = msg['subject']
 
-        email_body = ""
-
-        for part in msg.walk():
-            content_type = part.get_content_type()
-            if content_type in ["text/plain", "text/html"]:
-                payload = part.get_payload(decode=True)
-                if payload:
-                    email_body = payload.decode('utf-8', errors='ignore')
-                    break
+        email_body = parse_email_body(msg)
 
         rows.append({
             'UID': uid,
