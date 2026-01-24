@@ -1,9 +1,9 @@
 # Inteligentny Scraper Licytacji Komorniczych
 
 ![Status](https://img.shields.io/badge/status-in%20progress-orange)
-![Progress](https://img.shields.io/badge/progress-75%25-green)
+![Progress](https://img.shields.io/badge/progress-85%25-green)
 
-**Projekt w trakcie rozwoju (75%)**
+**Projekt w trakcie rozwoju (85%)**
 
 Automatyczne narzędzie do pobierania i przechowywania ogłoszeń o licytacjach komorniczych.
 Projekt wykorzystuje **AI (Google Gemini)**, **BeautifulSoup** i bazę danych **PostgreSQL**.
@@ -28,7 +28,12 @@ Projekt wykorzystuje **AI (Google Gemini)**, **BeautifulSoup** i bazę danych **
 
 ### Geokodowanie adresów
 - automatyczne pobieranie współrzędnych geograficznych (lat/lon)
-- integracja z OpenCage Geocoding API
+- integracja z Geoapify Geocoding API
+
+### Interaktywna mapa
+- wizualizacja aukcji na mapie (Folium)
+- popupy ze zdjęciami, cenami, datami i szczegółami
+- automatyczne odświeżanie
 
 ### Logowanie
 - logi do konsoli i plików (folder `logs/`)
@@ -55,8 +60,8 @@ PASSWORD=twoje-haslo-aplikacji-google
 # Gemini AI
 GEMINI_API_KEY=twoj_klucz_api_gemini
 
-# Geokodowanie (OpenCage)
-GEOCODE_API=twoj_klucz_api_opencage
+# Geokodowanie (Geoapify)
+GEOCODE_API=twoj_klucz_api_geoapify
 
 # PostgreSQL
 DB_NAME=nazwa_bazy
@@ -92,6 +97,9 @@ python -c "from src.db_connect import db_login; print(db_login())"
 # Ręczne tworzenie tabel
 python -c "from src.table_creation import create_tables_if_not_exists; from src.db_connect import db_login; conn, err = db_login(); create_tables_if_not_exists(conn, err)"
 
+# Generowanie mapy
+python -c "from src.mapka import update_the_map; update_the_map()"
+
 # Uruchomienie testów
 pytest tests/
 ```
@@ -103,22 +111,19 @@ pytest tests/
 ```
 main.py                     # entrypoint
 src/
-  bs4withAI.py              # scraper + AI + API
+  scraper.py                # główna logika scrapowania (API + AI fallback)
+  email_parser.py           # parsowanie maili, regex dla linków
+  login.py                  # IMAP Gmail
+  ai_client.py              # komunikacja z Google Gemini AI
+  data_transformer.py       # transformacja danych AI → format API
+  category_service.py       # obsługa kategorii aukcji
   db_connect.py             # połączenie z PostgreSQL
   db_fulfill.py             # zapis danych do bazy
   table_creation.py         # tworzenie tabel
-  login.py                  # IMAP Gmail
+  geocoding.py              # geokodowanie adresów (Geoapify API)
+  mapka.py                  # generowanie interaktywnej mapy (Folium)
   logger.py                 # konfiguracja logowania
-  geocoding.py              # geokodowanie adresów (OpenCage API)
 tests/                      # testy jednostkowe (pytest)
-  test_bs4withAi.py
-  test_db_connect.py
-  test_db_fulfill.py
-  test_login.py
-  test_logger.py
-  test_main.py
-  test_table_creation.py
-  test_conf.py
 logs/                       # pliki logów (YYYY-MM-DD.log)
 .env                        # zmienne środowiskowe
 ```
@@ -152,10 +157,12 @@ Dodaj go do `.gitignore`.
 - [x] System logowania
 - [x] Geokodowanie adresów
 - [x] Testy jednostkowe
-- [ ] Interaktywna mapa
+- [x] Interaktywna mapa (Folium)
 - [ ] Dashboard / UI
+- [ ] Filtrowanie i wyszukiwanie
+- [ ] Powiadomienia o nowych aukcjach
 
-**Aktualny postęp: ~75%**
+**Aktualny postęp: ~85%**
 
 ---
 
