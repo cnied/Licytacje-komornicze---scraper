@@ -26,15 +26,13 @@ def fetch_email(my_mail,mail_from):
     status, data = my_mail.uid(
         'search',
         None,
-        'SEEN',
+        'UNSEEN',
         'FROM',
         mail_from
     )
 
     mailids = data[0].split()
     logger.info("Number of unread emails from %s : %s", mail_from, len(mailids))
-    #print(mailids)
-
 
     # Initialize list to hold fetched messages
     msgs = []
@@ -52,6 +50,7 @@ def fetch_email(my_mail,mail_from):
         raw_email = data[0][1] + ("UID: " + uid + "\n").encode('utf-8')
         msgs.append((raw_email, uid))
         logger.info("UID %s, Length: %s", uid, len(raw_email))
+        my_mail.uid('STORE', i, '+FLAGS', '\\SEEN') # marking emails as seen
     
     return msgs
 

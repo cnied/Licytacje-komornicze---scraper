@@ -1,5 +1,4 @@
 import imaplib
-import yaml
 from dotenv import load_dotenv
 from src.logger import setup_logger
 import os

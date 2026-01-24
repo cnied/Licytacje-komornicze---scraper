@@ -3,6 +3,7 @@ from requests.structures import CaseInsensitiveDict
 from dotenv import load_dotenv
 from .logger import setup_logger
 from urllib.parse import quote
+import time
 import os
 
 logger = setup_logger("GEOCODING")
@@ -16,7 +17,7 @@ headers["Accept"] = "application/json"
 
 def geocoding_function(address):
     if not address:
-        return None
+        return None, None
     try:
         encoded_address = quote(address)
         url = f"https://api.geoapify.com/v1/geocode/search?text={encoded_address}&apiKey={GEOCODE_API}"
@@ -24,10 +25,12 @@ def geocoding_function(address):
         data = response.json()
         lon, lat = data["features"][0]["geometry"]["coordinates"]
         logger.info("Geocoding success | lon=%s lat=%s", lon, lat)
+        time.sleep(1)
         return lon,lat
     except Exception as e:
         logger.error("Error occured while geocoding: %s", e)
-        return None
+        time.sleep(1)
+        return None, None
     
 
 

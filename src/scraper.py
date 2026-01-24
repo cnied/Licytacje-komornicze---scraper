@@ -34,40 +34,41 @@ def fetch_auction_data(url,conn):
     ]
 
     # ========= AI FALLBACK =========
-    if not elicytacje_spans:  
-      for attempt in range(max_retries):
-          try:
-              ai_data = ai_response(str(soup),categories)
-              df = pd.DataFrame(soup)
-              df.to_csv('dane_testowe.csv')
-              api_like, address_data = ai_to_api_object(ai_data, url, conn)
-              api_like['object']['projectlink'] = url
-              address = " ".join(filter(None, [
-                address_data.get("streetPrefix"),
-                address_data.get("street"),
-                address_data.get("buildingNo"),
-                address_data.get("flatNo"),
-                address_data.get("zipCode"),
-                address_data.get("postOffice"),
-                address_data.get("city"),
-                address_data.get("district"),
-                address_data.get("province"),
-                address_data.get("country"),
-            ]))
-              lon, lat = geocoding_function(address)
-              address_data["lon"] = lon
-              address_data["lat"] = lat
+    if not elicytacje_spans:
+        pass
+    #   for attempt in range(max_retries):
+    #       try:
+    #           ai_data = ai_response(str(soup),categories)
+    #           df = pd.DataFrame(soup)
+    #           df.to_csv('dane_testowe.csv')
+    #           api_like, address_data = ai_to_api_object(ai_data, url, conn)
+    #           api_like['object']['projectlink'] = url
+    #           address = " ".join(filter(None, [
+    #             address_data.get("streetPrefix"),
+    #             address_data.get("street"),
+    #             address_data.get("buildingNo"),
+    #             address_data.get("flatNo"),
+    #             address_data.get("zipCode"),
+    #             address_data.get("postOffice"),
+    #             address_data.get("city"),
+    #             address_data.get("district"),
+    #             address_data.get("province"),
+    #             address_data.get("country"),
+    #         ]))
+    #           lon, lat = geocoding_function(address)
+    #           address_data["lon"] = lon
+    #           address_data["lat"] = lat
 
-              save_auction(api_like, conn, address_data)
-              logger.info("Auction saved (AI)")
-              return  # end after the succes
-          except Exception as e:
-              logger.error("Error, attempt: %s, error %s", attempt+1, e)
-              if attempt < max_retries - 1:
-                  time.sleep(retry_delay)
-              else:
-                  logger.error("Maximum retries reached")
-      return
+    #           save_auction(api_like, conn, address_data)
+    #           logger.info("Auction saved (AI)")
+    #           return  # end after the succes
+    #       except Exception as e:
+    #           logger.error("Error, attempt: %s, error %s", attempt+1, e)
+    #           if attempt < max_retries - 1:
+    #               time.sleep(retry_delay)
+    #           else:
+    #               logger.error("Maximum retries reached")
+    #   return
 
     # ========= API =========
     for item in elicytacje_spans:
