@@ -35,6 +35,8 @@ Projekt wykorzystuje **AI (Google Gemini)**, **BeautifulSoup** i bazę danych **
 - popupy ze zdjęciami, cenami, datami i szczegółami
 - automatyczne odświeżanie
 
+![Przykład mapy](screen.png)
+
 ### Logowanie
 - logi do konsoli i plików (folder `logs/`)
 - poziomy: DEBUG (plik), INFO (konsola)
