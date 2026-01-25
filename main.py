@@ -63,12 +63,12 @@ def main():
 
     df = pd.DataFrame(rows)
 
-    if df.empty:
-        logger.error("No emails found.")
+    if not df.empty:
+        df['Links'] = df['Body'].apply(body_regex)  # ← DODAJ TĘ LINIĘ
+        processed_links_list(df, conn)
+        logger.info("Links saved in DB")
     else:
-        df['Links'] = df['Body'].apply(body_regex)
-        df['Timestamp'] = pd.Timestamp.now()
-        df['UID'] = df['UID'].astype(str)
+        logger.error("Now new links found")
 
 
     
@@ -83,14 +83,11 @@ def main():
     lista_linkow = list_links_from_db(conn)
 
     logger.info("Starting processing of links...")
-    if lista_linkow is None:
+    if not lista_linkow:
         logger.info("All links already processed.")
         sys.exit()
 
-    
-    df = pd.DataFrame(lista_linkow)
-    print(df)
-
+    logger.info("Starting processing of %d links...", len(lista_linkow))
 
     for link in lista_linkow:
         logger.info("Processing link %s", link)
