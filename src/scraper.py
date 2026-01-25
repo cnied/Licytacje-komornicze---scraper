@@ -6,7 +6,7 @@ from .category_service import list_category_objects,get_category_object
 from .ai_client import ai_response
 from .geocoding import geocoding_function
 from .data_transformer import ai_to_api_object
-from .db_fulfill import save_auction
+from .db_fulfill import save_auction,save_links_to_process
 from .email_parser import elicytacje_regex
 import time
 
@@ -23,6 +23,7 @@ def fetch_auction_data(url,conn):
         html = requests.get(url, timeout=10).text
     except requests.RequestException as e:
         logger.error("Error while downloading the webstie %s: %s", url, e)
+        return
 
     soup = BeautifulSoup(html, "html.parser")
     categories = list_category_objects(conn)

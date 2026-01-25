@@ -6,6 +6,71 @@ from src.logger import setup_logger
 logger = setup_logger("DB_FULFILL")
 
 
+
+
+
+
+def save_links_to_process(data,conn):
+    if conn is None:
+        logger.error("Lack of DB connection, cannot add links to table")
+        return
+
+
+    with conn:
+        with conn.cursor() as cur:
+            for item in data:
+                cur.execute(
+                    """
+                    INSERT INTO links_to_process (Link, Processed)
+                    VALUES (%s, %s)
+                    ON CONFLICT (link) DO NOTHING
+                    """,
+                    (item['link'], item['Processed'])
+                )
+
+def update_processed_links(link,conn):
+    if conn is None:
+        logger.error("Lack of DB connection, cannot add links to table")
+        return
+
+
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE links_to_process
+                SET Processed = True
+                WHERE Link = %s;
+                """,
+                (link,)
+            )
+
+
+def processed_links_list(links,conn):
+    result = []
+    for index, row in links.iterrows():
+        for link in row["Links"]:
+            result.append({
+                'link': link,
+                'Processed': False
+            })
+
+    save_links_to_process(result, conn)
+
+    return result
+
+def list_links_from_db(conn):
+    cur = conn.cursor()
+    cur.execute("select * from links_to_process where processed = 'false'")
+    records = cur.fetchall()
+    links = [item[0] for item in records]
+    logger.info("Odpytano bazę o aktualną listę linków")
+    #print("list of dicts" +  str(categories))
+    #print(categories)
+    return links
+
+
+
 def save_auction(data,conn, address_data=None):
     if conn is None:
         logger.error("Lack of DB connection, cannot save auction.")

@@ -19,6 +19,12 @@ def create_tables_if_not_exists(conn, error):
         externalId BIGINT
     );
     """
+    linksToProcess = """
+    CREATE TABLE IF NOT EXISTS links_to_process (
+        link        TEXT UNIQUE,
+        Processed   BOOLEAN
+    );
+    """
 
     bailiffData = """
     CREATE TABLE IF NOT EXISTS bailiff_data (
@@ -104,6 +110,7 @@ def create_tables_if_not_exists(conn, error):
         community       TEXT
     );
     """
+    
 
 
     fk_itemcategory = """
@@ -331,6 +338,7 @@ def create_tables_if_not_exists(conn, error):
 
     commands = [
         itemCategory,
+        linksToProcess,
         bailiffData,
         auction_item,
         auction_attachment,

@@ -1,4 +1,5 @@
 import email
+from typing_extensions import Dict
 import pandas as pd
 import re
 import sys
@@ -9,6 +10,8 @@ from src.table_creation import create_tables_if_not_exists
 from src.db_connect import db_login
 from src.logger import setup_logger
 from src.email_parser import fetch_email,parse_email_body,body_regex
+from src.db_fulfill import processed_links_list,update_processed_links,list_links_from_db
+from src.db_connect import db_login
 from dotenv import load_dotenv
 
 
@@ -16,6 +19,11 @@ load_dotenv(".env")
 USER = os.getenv("USER")
 PASSWORD = os.getenv("PASSWORD")
 
+
+
+
+
+    
 
 def main():
     logger = setup_logger("MAIN")
@@ -60,29 +68,34 @@ def main():
     else:
         df['Links'] = df['Body'].apply(body_regex)
         df['Timestamp'] = pd.Timestamp.now()
-        df['Processed'] = False
         df['UID'] = df['UID'].astype(str)
 
-    cols = [col for col in ['Subject', 'Links', 'Timestamp', 'Processed', 'UID'] if col in df.columns]
-    if cols:
-        df[cols].to_csv('emails.csv', index=True, encoding='utf-8-sig')
+
+    
+
+
+
 
     #print(df)
 
     # Process auction links
     create_tables_if_not_exists(conn, error)
+    lista_linkow = list_links_from_db(conn)
 
     logger.info("Starting processing of links...")
-    if 'Links' not in df.columns:
-        logger.error("No links to process.")
+    if lista_linkow is None:
+        logger.info("All links already processed.")
         sys.exit()
 
-    for index, row in df.iterrows():
-        logger.info("Processing row %s/%s with UID: %s", index+1, len(df), row['UID'])
-        links = row['Links']
-        for link in links:
-            logger.info("Processing link: %s, Processing UID: %s", link, row['UID'])
-            fetch_auction_data(link,conn)
+    
+    df = pd.DataFrame(lista_linkow)
+    print(df)
+
+
+    for link in lista_linkow:
+        logger.info("Processing link %s", link)
+        update_processed_links(link, conn)
+        fetch_auction_data(link, conn)
 
 
 if __name__ == "__main__":
